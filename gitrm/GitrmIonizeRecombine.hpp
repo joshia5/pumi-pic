@@ -162,6 +162,8 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
   auto prev_ionize_ps = ptcls->get<PTCL_PREV_IONIZE>();
   auto first_ionizeT_ps = ptcls->get<PTCL_FIRST_IONIZET>();
   auto psCapacity = ptcls->capacity();
+  //delete later
+  auto pos_prev=ptcls->get<0>();
 
   //TODO replace by Kokkos random
   o::HostWrite<o::Real> rnd_h(psCapacity);
@@ -178,6 +180,12 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
       auto ptcl = pid_ps(pid);
       auto pos = p::makeVector3(pid, new_pos);
       auto charge = charge_ps(pid);
+
+
+      auto pos_previous = p::makeVector3(pid, pos_prev);
+
+      //printf("IONIZE particle %d timestep %d positions %.15e, %.15e, %.15e\n", ptcl, iTimeStep, pos_previous[0], pos_previous[1], pos_previous[2]);
+      //printf("IONIZE particle %d timestep %d positions %.15e, %.15e, %.15e\n", ptcl, iTimeStep, pos[0], pos[1], pos[2]);
       o::Real tlocal = 0;
       o::Real nlocal = 0;
       if(!use2DRatesData) {
@@ -338,7 +346,7 @@ inline void gitrm_recombine(PS* ptcls, const GitrmIonizeRecombine& gir,
             dzDens, nxDens, nzDens, pos, cylSymm,1,0,false);
           auto temp = p::interpolate2dField(temIon_d, x0Temp, z0Temp, dxTemp,
             dzTemp, nxTemp, nzTemp, pos, cylSymm,1,0,false);
-
+          
           if(debug)
             printf("Recomb Dens: ptcl %d x0 %g z0 %g dx %g dz %g nx %d " 
             " nz %d \n", ptcl, x0Dens, z0Dens, dxDens, dzDens, nxDens, nzDens);

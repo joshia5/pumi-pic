@@ -12,6 +12,10 @@
 #include "GitrmPush.hpp"
 #include "GitrmIonizeRecombine.hpp"
 #include "GitrmSurfaceModel.hpp"
+#include "GitrmCoulombCollision.hpp"
+#include "GitrmThermalForce.hpp"
+#include "GitrmCrossDiffusion.hpp"
+//#include "GitrmSurfaceModel.hpp"
 
 void printTiming(const char* name, double t) {
   fprintf(stderr, "kokkos %s (seconds) %f\n", name, t);
@@ -60,6 +64,7 @@ void rebuild(p::Mesh& picparts, PS* ptcls, o::LOs elem_ids,
   ps::parallel_for(ptcls, lamb);
   ptcls->migrate(ps_elem_ids, ps_process_ids);
 }
+
 
 void search(p::Mesh& picparts, GitrmParticles& gp,  o::Write<o::LO>& elem_ids,
     bool debug=false) {
@@ -186,6 +191,7 @@ int main(int argc, char** argv) {
     printf(" Particle Source file %s\n", ptclSource.c_str());
     printf(" Temp Density Profile file %s\n", profFile.c_str());
     printf(" IonizeRecomb File %s\n", ionizeRecombFile.c_str());
+    printf(" Gradient profile File %s\n", thermGradientFile.c_str());
     printf(" SurfModel File %s\n", surfModelFile.c_str());
     printf(" Gradient profile File %s\n", thermGradientFile.c_str());
   }
@@ -236,8 +242,7 @@ int main(int argc, char** argv) {
   auto* ptcls = gp.ptcls;
   const auto psCapacity = ptcls->capacity();
   gm.initBField(bFile); 
-
-  auto initFields = gm.addTagsAndLoadProfileData(profFile, profFile);
+  auto initFields = gm.addTagsAndLoadProfileData(profFile, profFile, thermGradientFile);
   OMEGA_H_CHECK(!ionizeRecombFile.empty());
   GitrmIonizeRecombine gir(ionizeRecombFile, chargedTracking);
 
@@ -311,16 +316,19 @@ int main(int argc, char** argv) {
       fprintf(stderr, "=================iter %d===============\n", iter);
     Kokkos::Profiling::pushRegion("BorisMove");
 
-    if(iter==1)
-      gp.checkCompatibilityWithGITRflags(iter); //TODO debug
+    //if(iter==1)
+    //  gp.checkCompatibilityWithGITRflags(iter); //TODO debug
 
     if(gir.chargedPtclTracking) {
-      gitrm_findDistanceToBdry(gp, gm, 0);
-      gitrm_calculateE(gp, *mesh, false, gm);
-      gitrm_borisMove(ptcls, gm, dTime, false);
+      bool flag = (iter >4000) ? true: false;
+      gitrm_findDistanceToBdry(gp, gm, flag);
+      gitrm_calculateE(gp, *mesh, flag, gm);
+      printf("Entering the boris routine \n");
+      gitrm_borisMove(ptcls, gm, dTime, flag);
     }
     else
       neutralBorisMove(ptcls,dTime);
+
     Kokkos::Profiling::popRegion();
     MPI_Barrier(MPI_COMM_WORLD);
 
@@ -334,8 +342,12 @@ int main(int argc, char** argv) {
     if(gir.chargedPtclTracking) {
       gitrm_ionize(ptcls, gir, gp, gm, elem_ids, false);
       gitrm_recombine(ptcls, gir, gp, gm, elem_ids, false);
+      //bool flag = (iter > 4060) ? true: false;
+      gitrm_cross_diffusion(ptcls, &iter, gm, gp,dTime);
+      search(picparts, gp, elem_ids, debug);
+      gitrm_coulomb_collision(ptcls, &iter, gm, gp, dTime);
+      gitrm_thermal_force(ptcls, &iter, gm, gp, dTime);
       gitrm_surfaceReflection(ptcls, sm, gp, gm, elem_ids, false);
-      //Search again. The particles in ps not yet moved to elem_ids. 
       //The elem_ids shouldn't be reset between the two search_mesh calls.
       search(picparts, gp, elem_ids, debug);
     }

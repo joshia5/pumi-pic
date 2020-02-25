@@ -176,8 +176,10 @@ inline void gitrm_borisMove(PS* ptcls, const GitrmMesh &gm, const o::Real dTime,
       auto vel = p::makeVector3(pid, vel_ps);
       auto pos = p::makeVector3(pid, pos_ps);
       auto charge = charge_ps(pid);
+      auto bField_radial= o::zero_vector<3>();
       auto bField = o::zero_vector<3>();
       auto eField = p::makeVector3(pid, efield_ps);
+
       auto eField0 = o::zero_vector<3>();
       bool cylSymm = true;
       p::interp2dVector(eFieldConst_d, 0, 0, 0, 0, 1, 1, pos, eField0, cylSymm);
@@ -207,10 +209,16 @@ inline void gitrm_borisMove(PS* ptcls, const GitrmMesh &gm, const o::Real dTime,
       o::Vector<3> vpxB = o::cross(vPrime, bField);
       o::Vector<3> cVpxB = coeff*vpxB;
       vel = vMinus + cVpxB;
-  auto vel_ = vel;
-      //v = v + q_prime*E
+      auto vel_ = vel;
       vel = vel + qpE;
-      // Next position and velocity
+      
+      if (false && ptcl==7)  {
+        printf("Inside push the original position to which increment is t be made ptcl %d is %.15e %.15e %.15e\n",ptcl, pos[0],pos[1],pos[2]);
+        printf("Inside push the velocity increment is to be made ptcl %d is %.15e %.15e %.15e\n", ptcl, vel[0],vel[1],vel[2]);
+        printf("Magnetic field %.15e %.15e %.15e\n",bField[0], bField[1], bField[2]);
+        printf("Electric field %.15e %.15e %.15e\n",eField[0], eField[1], eField[2]);
+      
+      }
       auto tgt = pos + vel * dTime;
       tgt_ps(pid, 0) = tgt[0];
       tgt_ps(pid, 1) = tgt[1];

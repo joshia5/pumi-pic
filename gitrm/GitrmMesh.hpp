@@ -28,8 +28,7 @@ namespace gitrm {
 
 //TODO put in config class
 const int USE_GITR_RND_NUMS = 1;
-const bool CREATE_GITR_MESH = true;
-
+const bool CREATE_GITR_MESH = false;
 const int USE_READIN_CSR_BDRYFACES = 1;
 const int WRITE_OUT_BDRY_FACES_FILE = 0;
 const bool WRITE_TEXT_D2BDRY_FACES = false;
@@ -51,6 +50,7 @@ const o::LO BIASED_SURFACE = 1;
 const o::Real CONSTANT_EFIELD0 = 0;
 const o::Real CONSTANT_EFIELD1 = 0;
 const o::Real CONSTANT_EFIELD2 = 0;
+
 const o::Real CONSTANT_BFIELD0 = 5;  //TODO FIXME
 const o::Real CONSTANT_BFIELD1 = 5;  //TODO FIXME
 const o::Real CONSTANT_BFIELD2 = -0.08;
@@ -173,7 +173,8 @@ public:
   o::Reals densEl_d;
   o::Reals temIon_d;
   o::Reals temEl_d;
-  
+
+  //Added for gradient file
   o::Reals gradTi_d;
   //o::Reals gradTiT_d;
   //o::Reals gradTiZ_d;
@@ -222,6 +223,7 @@ public:
   o::Real gradTeNz = 0;
   o::Real gradTeDx = 0;
   o::Real gradTeDz = 0;
+
   // till here
 
   // to replace tag
