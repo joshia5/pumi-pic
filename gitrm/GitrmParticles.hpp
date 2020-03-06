@@ -2,11 +2,12 @@
 #define GITRM_PARTICLES_HPP
 
 #include <fstream>
-#include "GitrmMesh.hpp"
+#include <mpi.h>
 #include <netcdf>
 #include <Kokkos_Core.hpp>
 #include <particle_structs.hpp>
-#include "pumipic_mesh.hpp"
+#include <pumipic_mesh.hpp>
+#include "GitrmMesh.hpp"
 
 using pumipic::fp_t;
 using pumipic::Vector3d;
@@ -30,13 +31,22 @@ typedef ps::ParticleStructure<Particle> PS;
 
 class GitrmParticles {
 public:
-  GitrmParticles(o::Mesh& m, double dT);
+  GitrmParticles(p::Mesh& picparts, long int totalPtcls, int nIter, double dT);
   ~GitrmParticles();
   GitrmParticles(GitrmParticles const&) = delete;
   void operator=(GitrmParticles const&) = delete;
 
-  void defineParticles(p::Mesh& picparts, int numPtcls, o::LOs& ptclsInElem, 
-    int elId=-1);
+  PS* ptcls;
+  p::Mesh& picparts;
+  o::Mesh& mesh;
+  o::Real timeStep = 0;
+  long int totalPtcls = 0;
+  int numIterations = 0;
+
+  void assignParticles(const o::Reals& data, const o::LOs& elemIdOfPtclsAll, 
+   o::LOs& numPtclsInElems, o::LOs& elemIdOfPtcls, o::LOs& ptclDataInds);
+  
+  void defineParticles(const o::LOs& ptclsInElem, int elId=-1);
   
   void findInitialBdryElemIdInADir(o::Real theta, o::Real phi, o::Real r,
     o::LO &initEl, o::Write<o::LO> &elemAndFace, 
@@ -44,48 +54,71 @@ public:
   
   void setPtclInitRndDistribution(o::Write<o::LO> &);
   
-  void initPtclsInADirection(p::Mesh& picparts, o::LO numPtcls,o::Real theta, 
-    o::Real phi, o::Real r, o::LO maxLoops = 100, o::Real outer=2);
+  void initPtclsInADirection(o::Real theta, o::Real phi, o::Real r, 
+    o::LO maxLoops = 100, o::Real outer=2);
   
   void setInitialTargetCoords(o::Real dTime);
   
-  void initPtclsFromFile(p::Mesh& picparts, const std::string& fName, 
-    o::LO& numPtcls, o::LO maxLoops=100, bool print=false);
+  void initPtclsFromFile(const std::string& fName, o::LO maxLoops=100, 
+    bool printSource=false);
   
   void initPtclChargeIoniRecombData();
   void initPtclSurfaceModelData();
 
-  void setPidsOfPtclsLoadedFromFile(const o::LOs& ptclIdPtrsOfElem,
-    const o::LOs& ptclIdsInElem,  const o::LOs& elemIdOfPtcls, 
-    const o::LO numPtcls, const o::LO nel);
+  void setPidsOfPtclsLoadedFromFile(const o::LOs& ptclIdPtrsOfElem, 
+    const o::LOs& ptclIdsInElem,  const o::LOs& elemIdOfPtcls, const o::LOs& ptclDataInds);
   
-  void setPtclInitData(const o::Reals& data, int nPtclsRead);
-  
-  void findElemIdsOfPtclFileCoordsByAdjSearch(const o::Reals& data, 
-    o::LOs& elemIdOfPtcls, o::LOs& numPtclsInElems, o::LO numPtcls, 
-    o::LO numPtclsRead);
+  void setPtclInitData(const o::Reals& data);
   
   void convertInitPtclElemIdsToCSR(const o::LOs& numPtclsInElems,
-    o::LOs& ptclIdPtrsOfElem, o::LOs& ptclIdsOfElem, o::LOs& elemIds,
-    o::LO numPtcls);
-  
-  int readGITRPtclStepDataNcFile(const std::string& ncFileName, 
-  int& maxNPtcls, int& numPtclsRead, bool debug=false);
+    o::LOs& ptclIdPtrsOfElem, o::LOs& ptclIdsOfElem, o::LOs& elemIds);
+
+  int readGITRPtclStepDataNcFile(const std::string& ncFileName, int& maxNPtcls, 
+    bool debug=false);
   void checkCompatibilityWithGITRflags(int timestep);
 
-  o::Real timeStep;
-  PS* ptcls;
-  o::Mesh& mesh;
+  bool searchPtclInAllElems(const o::Reals& data, const o::LO pind, o::LO& parentElem);
+  o::LO searchAllPtclsInAllElems(const o::Reals& data, o::Write<o::LO>& elemIdOfPtcls, 
+    o::Write<o::LO>& numPtclsInElems);
+  o::LO searchPtclsByAdjSearchFromParent(const o::Reals& data, const o::LO parentElem, 
+    o::Write<o::LO>& numPtclsInElemsAll, o::Write<o::LO>& elemIdOfPtclsAll);
+  void findElemIdsOfPtclCoordsByAdjSearch(const o::Reals& data, o::LOs& elemIdOfPtcls,
+   o::LOs& ptclDataInds, o::LOs& numPtclsInElems);
+
+  void storePtclDataInGridsRZ(o::LO iter, o::Write<o::LO>& data_d,
+   int gridsR=1, int gridsZ=10, double radMax=0.2, double zMax=0.8, 
+   double radMin=0, double zMin=0);
+
 
   // particle dist to bdry
   o::Reals closestPoints;
   o::LOs closestBdryFaceIds;
-  
-  void initPtclWallCollisionData(int numPtcls);
-  // wall collision; changed to per ptcl from per pid
-  o::Write<o::Real> wallCollisionPts;
-  o::Write<o::LO> wallCollisionFaceIds;
 
+  void initPtclWallCollisionData();
+  void resetPtclWallCollisionData();
+  void convertPtclWallCollisionData();
+  // wall collision; index over ptcl not pids
+  o::Reals wallCollisionPts;
+  o::LOs wallCollisionFaceIds;
+  o::Write<o::Real> wallCollisionPts_w;
+  o::Write<o::LO> wallCollisionFaceIds_w; 
+  void updatePtclHistoryData(int iter, const o::LOs& elem_ids);
+  void initPtclHistoryData(int histInterval);
+  o::Write<o::LO> ptclIdsOfHistoryData;
+  o::Write<o::Real> ptclHistoryData;
+  int numInitPtcls = 0;  // ptcls->nPtcls()
+  int numPtclsRead = 0;
+  int dofHistory = 1;
+  int histStep = 0; 
+  int histInterval = 0;
+  int nFilledPtclsInHistory = 0;
+  int nThistory = 0;
+  void writePtclStepHistoryFile(std::string ncfile, bool debug=false);
+  void writeDetectedParticles(std::string fname="", std::string header="");
+  void updateParticleDetection(const o::LOs& elem_ids, o::LO iter, bool debug=true);
+  void initPtclDetectionData(int numGrid=14);
+  o::Write<o::LO> collectedPtcls;
+  
   // test GITR step data
   o::Reals testGitrPtclStepData;
   int testGitrDataIoniRandInd = -1;
@@ -111,43 +144,36 @@ public:
 };
 
 namespace gitrm {
+const o::Real maxCharge = 73; // 74-1
 const o::Real ELECTRON_CHARGE = 1.60217662e-19;
 const o::Real PROTON_MASS = 1.6737236e-27;
 const o::Real BACKGROUND_AMU = 4.0; //for pisces
 const o::Real PTCL_AMU=184.0; //W,tungsten
 const o::LO PARTICLE_Z = 74;
-
-inline o::Reals getConstEField() {
-  o::HostWrite<o::Real> ef(3);
-  ef[0] = CONSTANT_EFIELD0;
-  ef[1] = CONSTANT_EFIELD1;
-  ef[2] = CONSTANT_EFIELD2;
-  return o::Reals(ef.write());
+const o::LO ptclHistAllocationStep = 10000;
+o::Reals getConstEField();
+bool checkIfRankZero();
+template<typename T>
+void reallocate_data(o::Write<T>& data, o::LO size, T init=0) {
+  auto n = data.size();
+  auto dataIn = o::Read<T>(data);
+  data = o::Write<T>(n+size, init);
+  o::parallel_for(n, OMEGA_H_LAMBDA(const int& i) {
+    data[i] = dataIn[i];
+  });
 }
 }//ns
 
 //timestep +1
 extern int iTimePlusOne;
-// TODO move to class, data is kept as members  
-void updatePtclStepData(PS* ptcls, o::Write<o::Real>& ptclStepData,
-  o::Write<o::LO>& lastFilledTimeSteps, int nP, int dof, int histStep=1); 
-
-void printPtclSource(o::Reals& data, int nPtcls, int nPtclsRead);
-
-void printStepData(std::ofstream& ofsHistory, PS* ptcls, int iter,
-  int numPtcls, o::Write<o::Real>& ptclsDataAll, o::Write<o::LO>& lastFilledTimeSteps, 
-  o::Write<o::Real>& data, int dof=8, bool accum = false);
-
-void writePtclStepHistoryFile(o::Write<o::Real>& ptclsHistoryData, 
-  o::Write<o::LO>& lastFilledTimeSteps, int numPtcls, int dof, 
-  int nTHistory, std::string outNcFileName);
-
 
 /** @brief Calculate distance of particles to domain boundary. 
  * Not yet clear if a pre-determined depth can be used
 */
 inline void gitrm_findDistanceToBdry(GitrmParticles& gp,
   const GitrmMesh& gm, int debug=0) {
+  if(debug)
+    printf("gitrm_findDistanceToBdry \n");
   int tstep = iTimePlusOne;
   auto* ptcls = gp.ptcls;
   o::Mesh& mesh = gm.mesh;  
@@ -248,134 +274,6 @@ inline void gitrm_findDistanceToBdry(GitrmParticles& gp,
 }
 
 
-//TODO dimensions set for pisces to be removed
-//call this before re-building, since mask of exiting ptcl removed from origin elem
-inline void updateSurfaceDetection(o::Mesh* mesh, GitrmParticles& gp, 
-    o::Write<o::LO>& data_d, o::LO iter, bool resetFids=true, bool debug=true) {
-  // test TODO move test part to separate unit test
-  double radMax = 0.05; //m 0.0446+0.005
-  double zMin = 0; //m height min
-  double zMax = 0.15; //m height max 0.14275
-  double htBead1 =  0.01275; //m ht of 1st bead
-  double dz = 0.01; //m ht of beads 2..14
-  PS* ptcls = gp.ptcls;
-  auto pisces_ids = mesh->get_array<o::LO>(o::FACE, "DetectorSurfaceIndex");
-  auto pid_ps = ptcls->get<PTCL_ID>();
-  //based on ptcl id or ptcls pid ?
-  const auto& xpoints = gp.wallCollisionPts;
-  auto& xpointFids = gp.wallCollisionFaceIds;
 
-  auto lamb = PS_LAMBDA(const int& e, const int& pid, const int& mask) {
-    if(mask >0) {
-      auto ptcl = pid_ps(pid);
-      auto fid = xpointFids[ptcl];
-      if(fid>=0) {
-        xpointFids[ptcl] = -1;
-        // test
-        auto xpt = o::zero_vector<3>();
-        for(o::LO i=0; i<3; ++i)
-          xpt[i] = xpoints[ptcl*3+i]; //ptcl = 0..numPtcls
-        auto x = xpt[0], y = xpt[1], z = xpt[2];
-        o::Real rad = sqrt(x*x + y*y);
-        o::LO zInd = -1;
-        if(rad < radMax && z <= zMax && z >= zMin)
-          zInd = (z > htBead1) ? (1+(o::LO)((z-htBead1)/dz)) : 0;
-        
-        auto detId = pisces_ids[fid];
-        if(detId > -1) { //TODO
-          if(debug)
-            printf("ptclID %d zInd %d detId %d pos %.5f %.5f %.5f iter %d\n", 
-              pid_ps(pid), zInd, detId, x, y, z, iter);
-          Kokkos::atomic_increment(&data_d[detId]);
-        }
-      }
-    }
-  };
-  ps::parallel_for(ptcls, lamb, "StorePiscesData");
-}
-
-//storePtclDataInGridsRZ(ptcls, iter, data_d, 1, 10, true);
-// gridsR gets preference. If >1 then gridsZ not taken
-inline void storePtclDataInGridsRZ(PS* ptcls, o::LO iter, o::Write<o::GO> &data_d, 
-  int gridsR=1, int gridsZ=10, bool debug=false, double radMax=0.2, 
-  double zMax=0.8, double radMin=0, double zMin=0) {
-  auto dz = (zMax - zMin)/gridsZ;
-  auto dr = (radMax - radMin)/gridsR;
-  auto pid_ps = ptcls->get<PTCL_ID>();
-  auto tgt_ps = ptcls->get<PTCL_NEXT_POS>();
-  auto lamb = PS_LAMBDA(const int& e, const int& pid, const int& mask) {
-    if(mask >0) {
-      auto x = tgt_ps(pid, 0);
-      auto y = tgt_ps(pid, 1);
-      auto z = tgt_ps(pid, 2);
-      auto rad = sqrt(x*x + y*y);
-      int ind = -1;
-      if(rad < radMax && radMin >= radMin && z <= zMax && z >= zMin)
-        if(gridsR >1) //prefer radial
-          ind = (int)((rad - radMin)/dr);
-        else if(gridsZ >1)
-          ind = (int)((z - zMin)/dz);
-      int dir = (gridsR >1)?1:0;
-      if(ind >=0) {
-        if(debug)
-          printf("grid_ptclID %d ind %d pos %.5f %.5f %.5f iter %d rdir %d\n", 
-            pid_ps(pid), ind, x, y, z, iter, dir);
-        Kokkos::atomic_increment(&data_d[ind]);
-      }
-    } //mask
-  };
-  ps::parallel_for(ptcls, lamb);
-}
-
-// print from host, since missing entries from device print  
-inline void printGridDataNComp(o::Write<o::GO> &data_d, int nComp=1) {
-  o::HostRead<o::GO> data(data_d);
-  auto maxInd = data.size()/nComp;
-  int sum = 0;
-  for(int i=0; i<data.size(); ++i)
-    sum += data[i];
-  printf("index  fraction1 ...  \n");  
-  for(int i=0; i<maxInd; ++i) {
-    printf("%d ", i);
-    for(int j=0; j<nComp; ++j)
-      printf("%.3f ", data[i*nComp+j]/sum);
-    printf("\n");
-  }
-}
-
-template <typename T>
-inline void printGridData(o::Write<T> &data_d, std::string fname="", 
-    std::string header="") {
-  if(fname=="")
-    fname = "result.txt";
-  std::ofstream outf(fname);
-  auto total = 0;
-  Kokkos::parallel_reduce(data_d.size(), OMEGA_H_LAMBDA(const int i, o::LO& lsum) {
-    lsum += data_d[i];
-  }, total);
-  outf << header << "\n";
-  outf << "total collected " <<  total << "\n";
-  o::HostRead<T> data(data_d);
-  outf << "index   total\n";  
-  for(int i=0; i<data.size(); ++i)
-    outf <<  i << " " << data[i] << "\n";
-}
-
-inline void printPtclHostData(o::HostWrite<o::Real>& dh, std::ofstream& ofsHistory, 
-  int num, int dof, const char* name, int iter=-1) { 
-  double pos[3], vel[3];
-  for(int i=0; i<num; ++i) {
-    for(int j=0; j<3; ++j) {
-      pos[j] = dh[i*dof+j];
-      vel[j] = dh[i*dof+3+j];
-    }
-    int id = static_cast<int>(dh[i*dof + 6]);
-    int it = static_cast<int>(dh[i*dof + 7]);
-    ofsHistory << name << " " << id+1 << " iter " << iter 
-      << " pos " << pos[0] << " " << pos[1] << " " << pos[2]
-      << " vel " << vel[0] << " " << vel[1] << " " << vel[2] 
-      << " updateiter " << it << "\n";
-  }
-} 
 #endif//define
 

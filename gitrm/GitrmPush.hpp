@@ -26,7 +26,7 @@ inline void gitrm_calculateE(GitrmParticles& gp, o::Mesh &mesh, bool debug,
   const int compareWithGitr = USE_GITR_RND_NUMS;
   const double biasPot = BIAS_POTENTIAL;
   if(compareWithGitr)
-    iTimePlusOne++;
+    ++iTimePlusOne;
   
   //const auto larmorRadius_d = gm.larmorRadius_d;
   //const auto childLangmuirDist_d = gm.childLangmuirDist_d;

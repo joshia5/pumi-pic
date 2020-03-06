@@ -20,8 +20,7 @@ make_test(linetri_intersection test_linetri_intersection.cpp)
 
 #make_test(test_dist2bdry_preprocess test_dist2Bdry_preprocess.cpp)
 make_test(borisMove borisMove.cpp)
-make_test(neutralTracking neutralTracking.cpp)
-make_test(SCStest SCStest.cpp)
+make_test(test_gitrm_ps test_gitrm_ps.cpp)
 make_test(test_interp2d test_interpolate2d.cpp)
 include(testing.cmake)
 

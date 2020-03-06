@@ -74,21 +74,19 @@ int verifyNetcdfFile(const std::string& ncFileName, int nc_err) {
   return status;
 } 
 
-int readParticleSourceNcFile(std::string ncFileName, 
-    o::HostWrite<o::Real>& data, int& maxNPtcls, int& numPtclsRead,
-    bool replaceNaN) {
+bool readParticleSourceNcFile(std::string ncFileName, o::HostWrite<o::Real>& data,
+   int& numPtcls, bool replaceNaN) {
   constexpr int dof = 6;
-  int status = 0;
+  bool status = true;
   verifyNetcdfFile(ncFileName);
   try {
     netCDF::NcFile ncf(ncFileName, netCDF::NcFile::read);
     netCDF::NcDim ncf_np(ncf.getDim("nP"));
-    int np = ncf_np.getSize();
-    if(np < maxNPtcls)
-      maxNPtcls = np;
-    //if(maxNPtcls >0 && maxNPtcls < np)
-    //  np = maxNPtcls;
-    numPtclsRead = np;
+    auto np = ncf_np.getSize();
+    OMEGA_H_CHECK(numPtcls <= np);
+    //if(numPtcls >0 && numPtcls < np)
+    //  np = numPtcls;
+    numPtcls = np;
     std::cout << " nPtcls in source file " << np << "\n";
     data = o::HostWrite<o::Real>(np*dof);
     netCDF::NcVar ncx(ncf.getVar("x"));
@@ -105,19 +103,19 @@ int readParticleSourceNcFile(std::string ncFileName,
     ncvz.getVar(&data[5*np]);
   } catch (netCDF::exceptions::NcException &e) {
     std::cout << e.what() << std::endl;
-    status = 1;
+    status = false;
   }
   if(replaceNaN) {
-    int nans = 0;
-    for(int i=0; i<data.size(); ++i)
+    long int nans = 0;
+    for(auto i=0; i<data.size(); ++i)
       if(std::isnan(data[i])) {
         data[i] = 0;
         ++nans;
       }
     if(nans)
-      printf("\n*******WARNING replaced %d NaNs in ptclSrc *******\n\n", nans);
+      printf("\n*******WARNING replaced %ld NaNs in ptclSrc *******\n\n", nans);
   }
-  if(status)
+  if(!status)
     Omega_h_fail("ERROR: reading file %s\n", ncFileName.c_str());
   return status;
 }
@@ -273,7 +271,7 @@ void writeOutBdryFaceCoordsNcFile(const std::string& fileName,
     Omega_h_fail("ERROR: failed writing file %s\n", fileName.c_str());
 }
 
-void writeOutputNcFile( o::Write<o::Real>& ptclHistoryData, int numPtcls,
+void writeOutputNcFile( o::HostWrite<o::Real>& ptclHistoryData, int numPtcls,
   int dof, OutputNcFileFieldStruct& st, std::string outNcFileName) {
   //if ext not nc, 
   //outNcFileName = outNcFileName + std::to_string(i) + ".nc";
@@ -294,15 +292,14 @@ void writeOutputNcFile( o::Write<o::Real>& ptclHistoryData, int numPtcls,
       ncVars.push_back(var);
     }
     //stored in timestep order : numPtcls*dof * iHistStep + id*dof
-    o::HostWrite<o::Real>ptclsData(ptclHistoryData);
-    int nHist = (int)ptclsData.size()/(dof*numPtcls);
+    int nHist = (int)ptclHistoryData.size()/(dof*numPtcls);
 
     //each component is written as seperate Var
     for(int i=0; i< dof; ++i) {
       o::HostWrite<o::Real> dat(nHist*numPtcls);
       for(int j=0; j<numPtcls; ++j) {
         for(int k=0; k<nHist; ++k) {
-          dat[j*nHist+k] = ptclsData[j*dof + i + k*numPtcls*dof];
+          dat[j*nHist+k] = ptclHistoryData[j*dof + i + k*numPtcls*dof];
         }
       }
       ncVars[i].putVar(&(dat[0]));
@@ -312,7 +309,7 @@ void writeOutputNcFile( o::Write<o::Real>& ptclHistoryData, int numPtcls,
       //const std::vector<ptrdiff_t> stridep{dof};
       // http://unidata.github.io/netcdf-cxx4/ncVar_8cpp_source.html#l00788 line-1142
       // https://github.com/Unidata/netcdf-c/blob/master/ncdump/ref_ctest.c
-      //ncVars[i].putVar(start, count, stridep, &(ptclsData[0]));
+      //ncVars[i].putVar(start, count, stridep, &(ptclHistoryData[0]));
       
     }
   } catch (netCDF::exceptions::NcException& e) {

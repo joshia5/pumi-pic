@@ -657,7 +657,6 @@ OMEGA_H_DEVICE bool ifBdryAffectsEfieldAt(o::LO fid, const o::Vector<3>& ref,
    const o::LOs& face_verts, const o::Reals& coords, const o::Real pot,
    const o::Real angle,  const o::Real debyeLen,  const o::Real larmorRad,
    const o::Real childLD, const o::Real emagLimit, const int biasedSurface) { 
-  bool debug = 0; 
   auto face = p::get_face_coords_of_tet(face_verts, coords, fid);
   auto pt = p::closest_point_on_triangle(face, ref);
   auto d2bdry = o::norm(pt - ref);

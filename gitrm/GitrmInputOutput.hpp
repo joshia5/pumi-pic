@@ -13,9 +13,8 @@ struct Field3StructInput;
 struct OutputNcFileFieldStruct;
 
 int verifyNetcdfFile(const std::string& ncFileName, int nc_err=1);
-int readParticleSourceNcFile(std::string ncFileName,
-  o::HostWrite<o::Real>& data, int& maxNPtcls, int& numPtclsRead, 
-  bool replaceNaN=false);
+bool readParticleSourceNcFile(std::string ncFileName, o::HostWrite<o::Real>& data,
+   int& numPtcls, bool replaceNaN = false);
 
 int readInputDataNcFileFS3(const std::string& ncFileName,
   Field3StructInput& fs, bool debug=false);
@@ -24,7 +23,7 @@ int readInputDataNcFileFS3(const std::string& ncFileName,
   Field3StructInput& fs, int& numInFile, int& numRead, 
   std::string numStr="None", bool debug=false);
 
-void writeOutputNcFile( o::Write<o::Real>& ptclsHistoryData, int numPtcls, 
+void writeOutputNcFile( o::HostWrite<o::Real>& ptclHistoryData, int numPtcls, 
   int dof, OutputNcFileFieldStruct& st, std::string outNcFileName);
 void writeOutBdryFaceCoordsNcFile(const std::string& outFileName, 
     o::Write<o::Real>& xd, o::Write<o::Real>& yd, o::Write<o::Real>& zd, const int nf); 

@@ -27,7 +27,7 @@ namespace gitrm {
 }
 
 //TODO put in config class
-const int USE_GITR_RND_NUMS = 1;
+const int USE_GITR_RND_NUMS = 0;
 const bool CREATE_GITR_MESH = false;
 const int USE_READIN_CSR_BDRYFACES = 1;
 const int WRITE_OUT_BDRY_FACES_FILE = 0;
@@ -223,9 +223,7 @@ public:
   o::Real gradTeNz = 0;
   o::Real gradTeDx = 0;
   o::Real gradTeDz = 0;
-
   // till here
-
   // to replace tag
   o::Reals densIonVtx_d;
   o::Reals tempIonVtx_d;  
@@ -239,7 +237,6 @@ public:
   //o::Reals gradTeT_vtx_d;
   //o::Reals gradTeZ_vtx_d;
   //till here
- 
   //get model Ids by opening mesh/model in Simmodeler
   o::HostWrite<o::LO> detectorSurfaceModelIds;
   o::HostWrite<o::LO> bdryMaterialModelIds;
@@ -250,24 +247,4 @@ public:
 private:
   bool exists = false;
 };
-
-// Cumulative sums. Done on host, to get ordered sum of all previous entries CSR.
-// NOTE: numsPerCell must have all entries including zero entries
-inline o::LO calculateCsrIndices(const o::LOs& numsPerCell, 
-  o::LOs& csrPointers) {
-  o::LO tot = numsPerCell.size();
-  o::HostRead<o::LO> numsPerCellH(numsPerCell);
-  o::HostWrite<o::LO> csrPointersH(tot+1);
-  o::Int sum = 0;
-
-  for(o::Int e=0; e < tot+1; ++e){
-    csrPointersH[e] = sum; // * S;
-    if(e<tot)
-      sum += numsPerCellH[e];
-  }
-  //CSR indices
-  csrPointers = o::LOs(csrPointersH.write());
-  return sum;
-}
-
 #endif// define

@@ -6,7 +6,6 @@
 #include <ctime>
 #include <fstream>
 
-
 class GitrmIonizeRecombine {
 public:
   GitrmIonizeRecombine(const std::string &fName, bool charged=true);
@@ -33,36 +32,29 @@ public:
   o::Reals gridDensRec;
 };
 
-//passed in Temperature is in log, but density is not
+// input temperature is in log, but density is not.
 // stored as 3component data, but interpolated from 2D grid in log scale
 OMEGA_H_DEVICE o::Real interpolateRateCoeff(const o::Reals &data, 
-  const o::Reals &gridTemp, const o::Reals &gridDens,
-  const o::Real tem, const o::Real dens, const o::Real gridT0, 
-  const o::Real gridD0, const o::Real dT, const o::Real dD, 
-  const o::LO nT,  const o::LO nD, o::LO charge) {
+   const o::Reals &gridTemp, const o::Reals &gridDens, const o::Real tem,
+   const o::Real dens, const o::Real gridT0, const o::Real gridD0, 
+   const o::Real dT, const o::Real dD, const o::LO nT,  const o::LO nD, o::LO charge) {
 
   int debug = 0;
   o::LO indT = floor( (log10(tem) - gridT0)/dT );
-  //o::LO indT = floor( (tem - gridT0)/dT );
   o::LO indN = floor( (log10(dens) - gridD0)/dD );
   if(indT < 0 || indT > nT-2)
     indT = 0;
   if(indN < 0 || indN > nD-2)
     indN = 0;
-  //TODO
-  if(charge > 74-1) //only Tungston
-    {charge = 0;} 
-  // TODO use log interpolation. This will lose accuracy 
-  auto gridTnext = gridTemp[indT+1] ;//gridT0 + (indT+1)*dT;
+
+  auto gridTnext = gridTemp[indT+1];
   o::Real aT = pow(10.0, gridTnext) - tem;
-  //o::Real aT = pow(10.0, gridTnext) - pow(10.0, tem);
-  auto gridT = gridTemp[indT] ;//gridT0 + indT*dT;
+  auto gridT = gridTemp[indT];
   o::Real bT = tem - pow(10.0, gridT);
-  //o::Real bT = pow(10.0, tem) - pow(10.0, gridT);
   o::Real abT = aT+bT;
-  auto gridDnext = gridDens[indN+1] ;//gridD0 + (indN+1)*dD;
+  auto gridDnext = gridDens[indN+1];
   o::Real aN = pow(10.0, gridDnext) - dens;
-  auto gridD = gridDens[indN]; //gridD0 + indN*dD;
+  auto gridD = gridDens[indN];
   o::Real bN = dens - pow(10.0, gridD);
   o::Real abN = aN + bN;
   if(debug)
@@ -86,22 +78,19 @@ OMEGA_H_DEVICE o::Real interpolateRateCoeff(const o::Reals &data,
   if(o::are_close(tem,0) || o::are_close(dens, 0))
     rate = 1.0e12;
   else {
-    //double eps = 1e-30; //TODO
-    //if(o::are_close(RClocal,0, eps,eps))
-    //  debug = 1;
-    //OMEGA_H_CHECK(!o::are_close(RClocal,0, eps,eps));
-
+    OMEGA_H_CHECK(!p::almost_equal(RClocal, 0, 1e-20));
     rate = 1/(RClocal*dens);
-    OMEGA_H_CHECK(!isnan(rate));
   }
   OMEGA_H_CHECK(!isnan(rate));
-
   return rate;
 }
 
 inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir, 
-  GitrmParticles& gp, const GitrmMesh& gm, o::Write<o::LO>& elm_ids, 
+  GitrmParticles& gp, const GitrmMesh& gm, const o::LOs& elm_ids, 
   bool debug = false) {
+  if(!gir.chargedPtclTracking)
+    return;
+  
   auto& mesh = gm.mesh;
   auto use2DRatesData = USE_2DREADIN_IONI_REC_RATES;
   auto& densIon_d = gm.densIon_d;
@@ -132,7 +121,6 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
     OMEGA_H_CHECK(gp.testGitrOptIoniRec);
   else
     OMEGA_H_CHECK(!gp.testGitrOptIoniRec);
-
   //#endif
 
   auto& xfaces_d = gp.wallCollisionFaceIds;
@@ -146,15 +134,13 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
   const auto& iRates = gir.ionizationRates; 
   const auto& gridTemp = gir.gridTempIonize;
   const auto& gridDens = gir.gridDensIonize;
+  const auto maxCharge = gitrm::maxCharge;
   const auto coords = mesh.coords();
   const auto mesh2verts = mesh.ask_elem_verts();
   const auto tIonVtx = mesh.get_array<o::Real>(o::VERT, "IonTempVtx");
   const auto densVtx = mesh.get_array<o::Real>(o::VERT, "IonDensityVtx"); 
-  
   auto tempWrite = o::deep_copy(mesh.get_array<o::Real>(o::VERT, "IonTempVtx"));
 
-  //const auto& tIonVtx = gm.tempIonVtx_d;
-  //const auto& densVtx = gm.densIonVtx_d;
   auto pid_ps = ptcls->get<PTCL_ID>();
   auto new_pos = ptcls->get<PTCL_NEXT_POS>();
   auto charge_ps = ptcls->get<PTCL_CHARGE>();
@@ -171,7 +157,6 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
     rnd_h[i] = (double)(std::rand())/RAND_MAX;
   }
   auto rands = o::Reals(o::Write<o::Real>(rnd_h));
-
   auto lambda = PS_LAMBDA(const int &elem, const int &pid, const int &mask) {
     // invalid elem_ids init to -1
     if(mask > 0 && elm_ids[pid] >= 0) {
@@ -180,12 +165,11 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
       auto ptcl = pid_ps(pid);
       auto pos = p::makeVector3(pid, new_pos);
       auto charge = charge_ps(pid);
-
-
       auto pos_previous = p::makeVector3(pid, pos_prev);
-
-      //printf("IONIZE particle %d timestep %d positions %.15e, %.15e, %.15e\n", ptcl, iTimeStep, pos_previous[0], pos_previous[1], pos_previous[2]);
-      //printf("IONIZE particle %d timestep %d positions %.15e, %.15e, %.15e\n", ptcl, iTimeStep, pos[0], pos[1], pos[2]);
+      if(debug) {
+        printf("IONIZE particle %d pid %d timestep %d positions %.15e, %.15e, %.15e\n", 
+          ptcl, pid, iTimeStep, pos_previous[0], pos_previous[1], pos_previous[2]);
+      }
       o::Real tlocal = 0;
       o::Real nlocal = 0;
       if(!use2DRatesData) {
@@ -194,12 +178,10 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
         tlocal = p::interpolateTetVtx(mesh2verts, tIonVtx, el, bcc, 1);
         nlocal = p::interpolateTetVtx(mesh2verts, densVtx, el, bcc, 1);
       }
-      if(charge > 74-1) //W=74, charge index=73
+      if(charge > maxCharge)
         charge = 0;
       // from data array
       if(use2DRatesData) {
-        // projecting point to y=0 plane, since 2D data is on const-y plane,
-        // same as a 2D plane through the particle position, with x'=r=(sqrt(x^2+y^2).
         bool cylSymm = true;
         auto dens = p::interpolate2dField(densIon_d, x0Dens, z0Dens, dxDens, 
           dzDens, nxDens, nzDens, pos, cylSymm, 1,0,false);
@@ -207,9 +189,11 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
           dzTemp, nxTemp, nzTemp, pos, cylSymm, 1,0,false);
         
         if(debug)
-          printf("Ionization point: ptcl %d dens2D %g temp2D %g tlocal %g nlocal %g "
-            " pos %g %g %g nxTemp %d nzTemp %d\n", 
-            ptcl, dens, temp, tlocal, nlocal, pos[0], pos[1], pos[2], nxTemp, nzTemp);
+          printf("Ionization point: ptcl %d timestep %d position %g %g %g dens2D %g "
+            "temp2D %g  tlocal %g nlocal %g  nxTemp %d nzTemp %d\n", 
+            ptcl,iTimeStep, pos[0], pos[1], pos[2], dens, temp, tlocal, 
+            nlocal, nxTemp, nzTemp);
+        
         nlocal = dens;
         tlocal = temp;
       } 
@@ -218,33 +202,29 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
 
       o::Real P1 = 1.0 - exp(-dt/rateIon);
       double randn = 0;
-      int gitrInd = -1; 
-      double randGitr = 0;
-      if(useGitrRnd) {
-        randGitr = testGitrPtclStepData[ptcl*testGNT*testGDof + iTimeStep*testGDof + testGIind];
-        randn = randGitr;        
-      } else
+      if(useGitrRnd)
+        randn = testGitrPtclStepData[ptcl*testGNT*testGDof + iTimeStep*testGDof + testGIind];
+      else
         randn = rands[pid];
-      
-      auto xfid = xfaces_d[ptcl];
+
+      if(debug) printf("ioniz\n");
+      auto xfid = xfaces_d[pid];
+      if(debug) printf("ioniz2\n");
+
       auto first_iz = first_ionizeZ_ps(pid);
       if(xfid < 0) {
         if(randn <= P1)
           charge_ps(pid) = charge+1;
       }  prev_ionize_ps(pid) = 1;
-        // Z=0 unitialized or specific z(height) value ? question
       if(o::are_close(first_iz, 0)) {
           first_ionizeZ_ps(pid) = pos[2]; // z
       } else if(o::are_close(first_iz, 0)) {
         auto fit = first_ionizeT_ps(pid);
         first_ionizeT_ps(pid) = fit + dt;
       } 
-      if(useGitrRnd && debug)
-        gitrInd = ptcl*testGNT*testGDof + iTimeStep*testGDof+testGIind;
       if(debug)
-        printf("ionizable %d ptcl %d charge %d randn %g P1 %g rateIon %g dt %g @ %d\n",
-          xfid<0, ptcl, charge_ps(pid), randn, P1, rateIon, dt, gitrInd);
-      
+        printf("ionizable %d ptcl %d timestep %d charge %d randn %g P1 %g rateIon %g dt %gn",
+          xfid<0, ptcl, iTimeStep, charge_ps(pid), randn, P1, rateIon, dt);
     } //mask 
   };
   ps::parallel_for(ptcls,lambda, "ionizeKernel");
@@ -252,7 +232,7 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
 
 
 inline void gitrm_recombine(PS* ptcls, const GitrmIonizeRecombine& gir, 
-   GitrmParticles& gp, const GitrmMesh& gm, o::Write<o::LO>& elm_ids, 
+   GitrmParticles& gp, const GitrmMesh& gm, const o::LOs& elm_ids, 
    bool debug = false) {
   auto& mesh = gm.mesh;
   auto& densIon_d = gm.densIon_d;
@@ -296,7 +276,7 @@ inline void gitrm_recombine(PS* ptcls, const GitrmIonizeRecombine& gir,
   auto nDRates = gir.recombDensGridN;
   const auto& rRates = gir.recombinationRates; 
   const auto& gridTemp = gir.gridTempRec;
-  const auto& gridDens = gir.gridDensRec;  
+  const auto& gridDens = gir.gridDensRec; 
   const auto coords = mesh.coords();
   const auto mesh2verts = mesh.ask_elem_verts();
   const auto tIonVtx = mesh.get_array<o::Real>(o::VERT, "IonTempVtx");
@@ -318,7 +298,7 @@ inline void gitrm_recombine(PS* ptcls, const GitrmIonizeRecombine& gir,
   auto rands = o::Reals(o::Write<o::Real>(rnd_h));
 
 
-  // is elm_ids[pid] >= 0 make sure ptcl not intersected bdry ?????????
+  // is elm_ids[pid] >= 0 make sure ptcl not intersected bdry
   auto lambda = PS_LAMBDA(const int &elem, const int &pid, const int &mask) {
     if(mask > 0 && elm_ids[pid] >= 0) {
       auto el = elm_ids[pid];
@@ -375,7 +355,7 @@ inline void gitrm_recombine(PS* ptcls, const GitrmIonizeRecombine& gir,
         else 
           randn = rands[pid];
 
-        auto xfid = xfaces_d[ptcl];
+        auto xfid = xfaces_d[pid];
         auto first_iz = first_ionizeZ_ps(pid);
         if(xfid < 0 && randn <= P1) {
           charge_ps(pid) = charge-1;

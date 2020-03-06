@@ -517,17 +517,18 @@ OMEGA_H_DEVICE void interp2dVector (const o::Reals& data3, const o::Real gridx0,
   const bool cylSymm = false, int* ptcl=nullptr) {
   bool debug = false;
   if(ptcl) debug = true;
-  field[0] = interpolate2d_field(data3, gridx0, gridz0, dx, dz, nx,
+  //TODO test precision of 2d_field and use it
+  field[0] = interpolate2dField(data3, gridx0, gridz0, dx, dz, nx,
     nz, pos, cylSymm, 3, 0, debug);
-  field[1] = interpolate2d_field(data3, gridx0, gridz0, dx, dz, nx, 
+  field[1] = interpolate2dField(data3, gridx0, gridz0, dx, dz, nx, 
     nz, pos, cylSymm, 3, 1, debug);
-  field[2] = interpolate2d_field(data3, gridx0, gridz0, dx, dz, nx, 
+  field[2] = interpolate2dField(data3, gridx0, gridz0, dx, dz, nx, 
     nz, pos, cylSymm, 3, 2, debug);
-  auto f1 = interpolate2dField(data3, gridx0, gridz0, dx, dz, nx, nz, 
+  auto f1 = interpolate2d_field(data3, gridx0, gridz0, dx, dz, nx, nz, 
     pos, cylSymm, 3, 0, debug);
-  auto f2 = interpolate2dField(data3, gridx0, gridz0, dx, dz, nx, nz, 
+  auto f2 = interpolate2d_field(data3, gridx0, gridz0, dx, dz, nx, nz, 
     pos, cylSymm, 3, 1, debug);
-  auto f3 = interpolate2dField(data3, gridx0, gridz0, dx, dz, nx, nz, 
+  auto f3 = interpolate2d_field(data3, gridx0, gridz0, dx, dz, nx, nz, 
     pos, cylSymm, 3, 2, debug);
   if(cylSymm) {
     auto theta = atan2(static_cast<double>(pos[1]), static_cast<double>(pos[0]));  
@@ -541,9 +542,8 @@ OMEGA_H_DEVICE void interp2dVector (const o::Reals& data3, const o::Real gridx0,
 OMEGA_H_DEVICE o::Vector<3> centroid_of_triangle(const o::Vector<3>& va,
   const o::Vector<3>& vb, const o::Vector<3>& vc) {
   o::Vector<3> pos;
-  pos[0] = va[0] + 0.666666667*(vb[0] + 0.5*(vc[0] - vb[0]) - va[0]); //2.0/3.0
-  pos[1] = va[1] + 0.666666667*(vb[1] + 0.5*(vc[1] - vb[1]) - va[1]);
-  pos[2] = va[2] + 0.666666667*(vb[2] + 0.5*(vc[2] - vb[2]) - va[2]);
+  for(int i=0; i<3; ++i)
+    pos[i] = va[i] + 0.666666667*(vb[i]+ 0.5*(vc[i] - vb[i]) - va[i]);//TODO 2.0/3.0
   return pos;  
 }
 
@@ -560,13 +560,12 @@ OMEGA_H_DEVICE o::Vector<3> face_centroid_of_tet(const o::LO fid,
 }
 
 OMEGA_H_DEVICE o::Vector<3> centroid_of_tet(const o::LO elem, 
-  const o::LOs &mesh2verts,  const o::Reals &coords) {
+  const o::LOs& mesh2verts,  const o::Reals& coords) {
   o::Vector<3> pos;
   auto tetv2v = o::gather_verts<4>(mesh2verts, elem);
   auto M = o::gather_vectors<4, 3>(coords, tetv2v);
-  pos[0]= (M[0][0]+M[1][0]+M[2][0]+M[3][0])/4;
-  pos[1]= (M[0][1]+M[1][1]+M[2][1]+M[3][1])/4;
-  pos[2]= (M[0][2]+M[1][2]+M[2][2]+M[3][2])/4;
+  for(int i=0; i<3; ++i)
+    pos[i] = (M[0][i]+M[1][i]+M[2][i]+M[3][i])/4;
   return pos;
 }
 

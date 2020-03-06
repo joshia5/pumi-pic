@@ -366,8 +366,8 @@ bool search_mesh_3d(o::Mesh& mesh, // (in) mesh
         //wall collision
         if(ind_exp >= 0) {
           for(o::LO i=0; i<3; ++i)
-            xpoints_d[ptcl*3+i] = xpts[i];
-          xface_d[ptcl] = face_ids[ind_exp];
+            xpoints_d[pid*3+i] = xpts[i];
+          xface_d[pid] = face_ids[ind_exp];
           if(debug)
             printf("Ptcl %d hit boundary and exiting \n", ptcl);
           elem_ids_next[pid] = -1;
@@ -414,8 +414,8 @@ bool search_mesh_3d(o::Mesh& mesh, // (in) mesh
         if(exposed) {
           elem_ids_next[pid] = -1;
           for(o::LO i=0; i<3; ++i)
-            xpoints_d[ptcl*3+i] = xpoints[max_ind*3+i];            
-          xface_d[ptcl] = face_id;
+            xpoints_d[pid*3+i] = xpoints[max_ind*3+i];            
+          xface_d[pid] = face_id;
           if(debug)
             printf("Ptcl %d hit boundary and exiting \n", ptcl);
           ptcl_done[pid] = 2;        
@@ -574,8 +574,8 @@ bool search_mesh(o::Mesh& mesh, ps::ParticleStructure< ParticleType >* ptcls,
             if(intersected && exposed) {
               ptcl_done[pid] = 1;
               for(o::LO i=0; i<3; ++i)
-                xpoints_d[ptcl*3+i] = xpoint[i];
-              xface_d[ptcl] = face_id;
+                xpoints_d[pid*3+i] = xpoint[i];
+              xface_d[pid] = face_id;
               elem_ids_next[pid] = -1;
               if(debug)
                 printf("\t ptcl %d e %d faceid %d intersected and exposed, next parent "
@@ -614,8 +614,8 @@ bool search_mesh(o::Mesh& mesh, ps::ParticleStructure< ParticleType >* ptcls,
               if(exposed_faces[max_ind]) {
                 elem_ids_next[pid] = -1;
                 for(o::LO i=0; i<3; ++i)
-                  xpoints_d[ptcl*3+i] = xpoints[max_ind*3+i];            
-                xface_d[ptcl] = fid;
+                  xpoints_d[pid*3+i] = xpoints[max_ind*3+i];            
+                xface_d[pid] = fid;
                 ptcl_done[pid] = 1;
               } else { //if(min_bcc_elem >= 0) {
                 elem_ids_next[pid] = dual_elems[fid]; //min_bcc_elem;
@@ -662,6 +662,15 @@ bool search_mesh(o::Mesh& mesh, ps::ParticleStructure< ParticleType >* ptcls,
   return found;
 }
 
+OMEGA_H_DEVICE bool isPointWithinElemTet(const o::LOs& mesh2verts, 
+   const o::Reals& coords, const o::Vector<3>& pos, const o::LO elem, 
+   o::Vector<4>& bcc, const o::Real tol=1.0e-20) {
+  auto tetv2v = o::gather_verts<4>(mesh2verts, elem);
+  auto tet = gatherVectors4x3(coords, tetv2v);
+  find_barycentric_tet(tet, pos, bcc);
+  return all_positive(bcc, tol);
+}
+
 // To interpoalte field stored at vertices. Field has dof components, and 
 // stored in order 0,1,2,3 at tet's vertices. BCC in order of faces
 OMEGA_H_DEVICE Omega_h::Real interpolateTetVtx(const Omega_h::LOs& mesh2verts,
@@ -690,18 +699,11 @@ OMEGA_H_DEVICE void interpolate3dFieldTet(const Omega_h::LOs& mesh2verts,
   }
 }
 
-OMEGA_H_DEVICE void findTetCoords(const Omega_h::LOs &mesh2verts,
-const Omega_h::Reals &coords, const Omega_h::LO elem, 
-Omega_h::Matrix<DIM, 4> &mat) {
-  const auto tetv2v = Omega_h::gather_verts<4>(mesh2verts, elem);
-  mat = Omega_h::gather_vectors<4, 3>(coords, tetv2v);
-}
-
 OMEGA_H_DEVICE void findBCCoordsInTet(const Omega_h::Reals &coords, 
-  const Omega_h::LOs &mesh2verts, const Omega_h::Vector<3> &xyz, 
-  const Omega_h::LO elem, Omega_h::Vector<4> &bcc) {
-  Omega_h::Matrix<3, 4> mat;
-  findTetCoords(mesh2verts, coords, elem, mat);
+   const Omega_h::LOs &mesh2verts, const Omega_h::Vector<3> &xyz, 
+   const Omega_h::LO elem, Omega_h::Vector<4> &bcc) {
+  const auto tetv2v = Omega_h::gather_verts<4>(mesh2verts, elem);
+  auto mat = Omega_h::gather_vectors<4, 3>(coords, tetv2v);
   const bool res = find_barycentric_tet(mat, xyz, bcc);
   OMEGA_H_CHECK(res==1);
   OMEGA_H_CHECK(all_positive(bcc)==1);

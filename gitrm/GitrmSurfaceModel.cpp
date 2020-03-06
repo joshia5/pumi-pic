@@ -1,4 +1,3 @@
-#include <mpi.h>
 #include <netcdf>
 #include "GitrmSurfaceModel.hpp"
 #include "GitrmInputOutput.hpp"
@@ -69,10 +68,10 @@ void GitrmSurfaceModel::initSurfaceModelData(std::string ncFile, bool debug) {
 
   prepareSurfaceModelData();
 
-  if(gitrm::SURFACE_FLUX_EA > 0) {
+  //if(gitrm::SURFACE_FLUX_EA > 0) {
     dEdist = (enDist - en0Dist)/nEnDist;
     dAdist = (angDist - ang0Dist)/nAngDist;
-  }
+  //}
   auto nDist = numDetectorSurfaceFaces * nEnDist * nAngDist;
   if(debug)
     printf(" nEdist %d nAdist %d #DetSurfFaces %d nDist %d\n", 
@@ -385,14 +384,23 @@ void GitrmSurfaceModel::getSurfaceModelData(const std::string fileName,
 //This won't work for partitioned mesh of non-full-buffer
 //TODO move to IO file
 //Call at the end of simulation
-void GitrmSurfaceModel::writeOutSurfaceData(std::string fileName) {
-  int comm_rank;
-  MPI_Comm_rank(MPI_COMM_WORLD, &comm_rank);
-  if(comm_rank!=0) {
-    printf("Skipped call to collect and write surface-model data from rank %d\n", comm_rank);
+void GitrmSurfaceModel::writeSurfaceDataFile(std::string fileName) {
+  o::HostWrite<o::Real> energyDist_h(energyDistribution);
+  o::HostWrite<o::Real> reflDist_h(reflDistribution);
+  o::HostWrite<o::Real> sputtDist_h(sputtDistribution);
+
+  //FIXME this is only for full buffer partitioning.
+  //MPI_IN_PLACE  wont work for variable size, use MPI GATHERV 
+  MPI_Reduce(MPI_IN_PLACE, &energyDist_h[0], 
+    energyDist_h.size(), MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce(MPI_IN_PLACE, &reflDist_h[0], 
+    reflDist_h.size(), MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce(MPI_IN_PLACE, &sputtDist_h[0],
+    sputtDist_h.size(), MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+  if(!gitrm::checkIfRankZero()) {
     return;
   }
-  // mesh synchronized at the end of run 
+  // mesh synchronized at the end of run ?
   auto sumPtclStrike = o::HostRead<int>(mesh.get_array<o::Int>(o::FACE, 
     "SumParticlesStrike"));
   auto sputtYldCount = o::HostRead<int>(mesh.get_array<o::Int>(o::FACE, 
@@ -405,21 +413,6 @@ void GitrmSurfaceModel::writeOutSurfaceData(std::string fileName) {
     "GrossErosion"));
   auto aveSputtYld = o::HostRead<double>(mesh.get_array<o::Real>(o::FACE, 
     "AveSputtYld")); 
-  auto nDist = numDetectorSurfaceFaces * nEnDist * nAngDist;
-  o::HostWrite<double> totEnDistribution(nDist);
-  o::HostWrite<double> totReflDistribution(nDist);
-  o::HostWrite<double> totSputtDistribution(nDist);
-  o::HostWrite<o::Real> energyDistribution_h(energyDistribution);
-  o::HostWrite<o::Real> reflDistribution_h(reflDistribution);
-  o::HostWrite<o::Real> sputtDistribution_h(sputtDistribution);
-  //FIXME size can be different across ranks
-  //MPI_IN_PLACE  wont work, use MPI GATHERV 
-  MPI_Reduce(&totEnDistribution[0], &energyDistribution_h[0], 
-    numDetectorSurfaceFaces, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-  MPI_Reduce(&totReflDistribution[0], &reflDistribution_h[0], 
-    numDetectorSurfaceFaces, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-  MPI_Reduce(&totSputtDistribution[0], &sputtDistribution_h[0],
-    numDetectorSurfaceFaces, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
  
   netCDF::NcFile ncf(fileName, netCDF::NcFile::replace);
   netCDF::NcDim ncs = ncf.addDim("nSurfaces", numDetectorSurfaceFaces);
@@ -444,9 +437,9 @@ void GitrmSurfaceModel::writeOutSurfaceData(std::string fileName) {
   netCDF::NcVar nWtStrike =  ncf.addVar("sumWeightStrike", netCDF::ncDouble, ncs);
   nWtStrike.putVar(&sumWtStrike[0]);
   netCDF::NcVar surfEDist = ncf.addVar("surfEDist", netCDF::ncDouble, dims);
-  surfEDist.putVar(&totEnDistribution[0]);
+  surfEDist.putVar(&energyDist_h[0]);
   netCDF::NcVar surfReflDist = ncf.addVar("surfReflDist", netCDF::ncDouble, dims);
-  surfReflDist.putVar(&totReflDistribution[0]);
+  surfReflDist.putVar(&reflDist_h[0]);
   netCDF::NcVar surfSputtDist = ncf.addVar("surfSputtDist", netCDF::ncDouble, dims);
-  surfSputtDist.putVar(&totSputtDistribution[0]);
+  surfSputtDist.putVar(&sputtDist_h[0]);
 }
