@@ -296,7 +296,6 @@ int main(int argc, char** argv) {
 
     //if(iter==1)
     //  gp.checkCompatibilityWithGITRflags(iter); //TODO for testing only
-
     gitrm_findDistanceToBdry(gp, gm, false);
     gitrm_calculateE(gp, *mesh, false, gm);
     gitrm_borisMove(ptcls, gm, dTime, false);
@@ -311,6 +310,7 @@ int main(int argc, char** argv) {
     Kokkos::Profiling::pushRegion("otherRoutines");
     gitrm_ionize(ptcls, gir, gp, gm, elem_ids_r, false);
     gitrm_recombine(ptcls, gir, gp, gm, elem_ids_r, false);
+    //TODO use elem_ids_r
     gitrm_cross_diffusion(ptcls, &iter, gm, gp,dTime, elem_ids);
     search(picparts, gp, elem_ids, debug);
     gitrm_coulomb_collision(ptcls, &iter, gm, gp, dTime, elem_ids);

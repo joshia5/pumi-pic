@@ -182,8 +182,7 @@ OMEGA_H_DEVICE void printPtclPathEndPointsAndTet(o::LO id, o::LO elem,
  *  @param[in] comp, nth component, out of degree of freedom
  *  @return value corresponding to comp
  */
- /*
-  OMEGA_H_DEVICE o::Real interpolate2dField(const o::Reals& data, 
+  OMEGA_H_DEVICE o::Real interpolate2dField_(const o::Reals& data, 
   const o::Real gridx0, const o::Real gridz0, const o::Real dx, 
   const o::Real dz, const o::LO nx, const o::LO nz, 
   const o::Vector<3> &pos, const bool cylSymm = true, 
@@ -241,12 +240,6 @@ OMEGA_H_DEVICE void printPtclPathEndPointsAndTet(o::LO id, o::LO elem,
   return fxz;
 }
 
-*/
-
-
-//*/
-
-
 OMEGA_H_DEVICE o::Real interpolate2dField(const o::Reals& data, 
   const o::Real gridx0, const o::Real gridz0, const o::Real dx, 
   const o::Real dz, const o::LO nx, const o::LO nz, 
@@ -298,9 +291,6 @@ OMEGA_H_DEVICE o::Real interpolate2dField(const o::Reals& data,
     fxz = ((gridZjp1-z)*fx_z1+(z - gridZj)*fx_z2)/dz;
      
   }
-  //printf("fxz1, z2:%g %g  dim1:%g  i, j:%d %d near points: %g %g %g %g \n", fx_z1, fx_z2, dim1, i, j, 
-  //      data[(i+j*nx)*nComp + comp], data[(i+1+j*nx)*nComp + comp], data[(i+(j+1)*nx)*nComp + comp], data[(i+1+(j+1)*nx)*nComp + comp] );
-
   if(debug)
     printf("interp2dField pos: %g %g %g : dim1 %g nx %d nz %d gridx0 %g " 
       "gridz0 %g grid1 %g grid2 %g i %d j %d dx %g dz %g fxz %g \n",
@@ -308,18 +298,6 @@ OMEGA_H_DEVICE o::Real interpolate2dField(const o::Reals& data,
       gridXip1, i, j, dx, dz, fxz);
   return fxz;
 } 
-
-/*
-//TODO make unit test interpolate2dField(
-index,data:  418  1.82241e+18 419 1.55216e+18  518 1.82241e+18 519 1.55216e+18  
-  pos: 0.013715 -0.0183798 7.45029e-06 : dim1 0.0229329 
-  nx 100 nz 50 gridx0 0 gridz0 -0.05 i 18 j 4 dx 0.00121212 dz 0.0102041 
-  fxz 1.57387e+18 
-index,data:  418  2.29957 419 1.97687  518 2.29957 519 1.97687  
- pos: 0.013715 -0.0183798 7.45029e-06 : dim1 0.0229329 
- nx 100 nz 50 gridx0 0 gridz0 -0.05 i 18 j 4 dx 0.00121212 dz 0.0102041 
- fxz 2.0028 
-*/
 
 OMEGA_H_DEVICE o::Real interpolate2d_base(const o::Real d1, const o::Real d2,
   const o::Real grid1, const o::Real grid2, const o::Real v, const o::Real dv) {
@@ -530,8 +508,13 @@ OMEGA_H_DEVICE void interp2dVector (const o::Reals& data3, const o::Real gridx0,
     pos, cylSymm, 3, 1, debug);
   auto f3 = interpolate2d_field(data3, gridx0, gridz0, dx, dz, nx, nz, 
     pos, cylSymm, 3, 2, debug);
+  if(debug) {
+    printf("F123 are %.15f %.15f %.15f \n", f1,f2,f3);
+    printf("Field123 are %.15f %.15f %.15f \n", field[0],field[1],field[2]);
+  }
   if(cylSymm) {
-    auto theta = atan2(static_cast<double>(pos[1]), static_cast<double>(pos[0]));  
+    //auto theta = atan2(static_cast<double>(pos[1]), static_cast<double>(pos[0]));
+    o::Real theta = atan2(pos[1], pos[0]);
     auto field0 = field[0];
     auto field1 = field[1]; 
     field[0] = cos(theta)*field0 - sin(theta)*field1;

@@ -683,13 +683,17 @@ OMEGA_H_DEVICE Omega_h::Real interpolateTetVtx(const Omega_h::LOs& mesh2verts,
   for(Omega_h::LO fi=0; fi<4; ++fi) {//faces
     auto d = Omega_h::simplex_opposite_template(3,2,fi); //3,2,0,1
     auto fd = d*dof + comp;
+    printf("Barycentric co-ord is %.18f \n", bcc[fi]);
+    printf("Field value is %.15f \n", fv4[fd][0]);
     val = val + bcc[fi]*fv4[fd][0];
+    printf("Value is %.15f \n",val);
     if(debug)
       printf("interp: %g %d %g %g \n", bcc[fi]*fv4[fd][0], d, 
         bcc[fi], fv4[fd][0]);
   }
   return val;
 }
+
 
 OMEGA_H_DEVICE void interpolate3dFieldTet(const Omega_h::LOs& mesh2verts,
   const Omega_h::Reals &field, o::LO elem, const Omega_h::Vector<4> &bcc, 
@@ -708,7 +712,6 @@ OMEGA_H_DEVICE void findBCCoordsInTet(const Omega_h::Reals &coords,
   OMEGA_H_CHECK(res==1);
   OMEGA_H_CHECK(all_positive(bcc)==1);
 }
-
 
 // Voronoi regions of triangle, to find nearest point on triangle
 enum TriRegion {
