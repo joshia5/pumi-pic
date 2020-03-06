@@ -31,7 +31,6 @@ GitrmParticles::GitrmParticles(p::Mesh& picparts, long int nPtcls, int nIter, do
   totalPtcls = nPtcls;
   numIterations = nIter;
   timeStep = dT;
-  initPtclDetectionData();
 }
 
 GitrmParticles::~GitrmParticles() {
@@ -366,7 +365,7 @@ void GitrmParticles::convertInitPtclElemIdsToCSR(const o::LOs& numPtclsInElems,
 
 void GitrmParticles::setPidsOfPtclsLoadedFromFile(const o::LOs& ptclIdPtrsOfElem,
   const o::LOs& ptclIdsInElem,  const o::LOs& elemIdOfPtcls, const o::LOs& ptclDataInds) {
-  int debug = 1;
+  int debug = 0;
   if(debug) printf("numInitPtcls %d numPtclsRead %d \n", numInitPtcls, numPtclsRead);
   auto nInitPtcls = numInitPtcls;
   //TODO for full-buffer only
@@ -407,7 +406,7 @@ void GitrmParticles::setPidsOfPtclsLoadedFromFile(const o::LOs& ptclIdPtrsOfElem
 // ie. their mask will be 0. If mask is not used, invalid particles may 
 // show up from other threads in the launch group.
 void GitrmParticles::setPtclInitData(const o::Reals& data) {
-  o::LO debug = 1;
+  o::LO debug = 0;
   if(debug) printf("numPtclsRead %d \n", numPtclsRead);
   auto npRead = numPtclsRead;
   const auto coords = mesh.coords(); 
@@ -825,16 +824,15 @@ void GitrmParticles::writePtclStepHistoryFile(std::string ncfile, bool debug) {
 
 //if elem_ids invalid then store xpoints, else store final position. 
 //if iter is before timestep starts, store init position, which makes
-//total history step +1.
+//total history step +1. Stored in aray for totalPtcls
 void GitrmParticles::updatePtclHistoryData(int iter, const o::LOs& elem_ids) {
-  bool debug = 1;
-  if(debug)
-    printf(" histupdate iter %d interval %d \n", iter, histInterval);
+  bool debug = 0;
   if(!histInterval || iter%histInterval)
     return;
-
   int iThistory = 1 + iter/histInterval; 
   auto size = ptclIdsOfHistoryData.size();
+  auto dof = dofHistory;
+  auto nPtcls = totalPtcls;
   auto ndi = dofHistory*iThistory;
   auto nh = nThistory;
   auto ptclIds = ptclIdsOfHistoryData;
@@ -845,25 +843,31 @@ void GitrmParticles::updatePtclHistoryData(int iter, const o::LOs& elem_ids) {
   auto pid_ps = ptcls->get<PTCL_ID>();
   auto xfids = wallCollisionFaceIds; 
   auto xpts = wallCollisionPts;
+  if(debug)
+    printf(" histupdate iter %d iThistory %d size %d ndi %d nh %d nelid %d nfid %d\n", 
+      iter, iThistory, size, ndi, nh, elem_ids.size(), xfids.size());
   auto lambda = PS_LAMBDA(const int& elem, const int& pid, const int& mask) {
     if(mask >0) {
       auto ptcl = pid_ps(pid);
       auto vel = p::makeVector3(pid, vel_ps);
       auto pos = p::makeVector3(pid, pos_next);
       if(iter < 0)
-        pos = p::makeVector3(pid, pos_ps);
-      OMEGA_H_CHECK(elem_ids[pid] >= 0 || xfids[pid] >=0);
-      if(elem_ids[pid] <0)
-        for(int i=0; i<3; ++i)
-          pos[i] = xpts[pid*3+i]; 
-      int beg = nh*ptcl + ndi;
-      for(int i=0; i<3; ++i) {
-          historyData[beg+i] = pos[i];
-          historyData[beg+3+i] = vel[i];
-          if(debug)
-            printf("iter %d ptcl %d pid %d i %d beg %d beg+i %d pos %g vel %g\n", 
-             iter,ptcl, pid, i, beg, beg+i, pos[i], vel[i]);
+        pos = p::makeVector3(pid, pos_ps);    
+      auto check = (elem_ids[pid] >= 0) || (xfids[pid] >=0);
+      OMEGA_H_CHECK(check);
+      if(xfids[pid] >=0) {
+        for(int i=0; i<3; ++i) {
+          pos[i] = xpts[pid*3+i];
+        }
       }
+      int beg = nPtcls*dof*iThistory + ptcl*dof; //storage format //nh*ptcl + ndi;
+      for(int i=0; i<3; ++i) {
+        historyData[beg+i] = pos[i];
+        historyData[beg+3+i] = vel[i];
+      }
+      if(debug)
+        printf("iter %d ptcl %d pid %d beg %d pos %g %g %g vel %g %g %g\n", iter, 
+          ptcl, pid, beg, pos[0], pos[1], pos[2], vel[0], vel[1], vel[2]);
       Kokkos::atomic_exchange(&(ptclIds[ptcl]), ptcl);
     }// mask
   };

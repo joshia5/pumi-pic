@@ -226,8 +226,11 @@ int main(int argc, char** argv) {
     gm.createSurfaceGitrMesh();
   }
 
-  if(piscesRun)
+  if(piscesRun) {
     gm.markDetectorSurfaces(true);
+    int dataSize = 14;
+    gp.initPtclDetectionData(dataSize);
+  }
 
   int useGitrRandNums = USE_GITR_RND_NUMS;
   int testNumPtcls = 1;
@@ -237,13 +240,13 @@ int main(int argc, char** argv) {
     assert(testNumPtcls >= totalNumPtcls);
   }
   auto* ptcls = gp.ptcls;
-  const auto psCapacity = ptcls->capacity();
   gm.initBField(bFile); 
   auto initFields = gm.addTagsAndLoadProfileData(profFile, profFile, thermGradientFile);
   OMEGA_H_CHECK(!ionizeRecombFile.empty());
   GitrmIonizeRecombine gir(ionizeRecombFile, chargedTracking);
 
   auto initBdry = gm.initBoundaryFaces(initFields, false);
+  
   printf("Preprocessing: dist-to-boundary faces\n");
   int nD2BdryTetSubDiv = D2BDRY_GRIDS_PER_TET;
   int readInCsrBdryData = USE_READIN_CSR_BDRYFACES;
@@ -304,22 +307,22 @@ int main(int argc, char** argv) {
     assert(psCapacity > 0);
     o::Write<o::LO> elem_ids(psCapacity,-1);
     search(picparts, gp, elem_ids, debug);
-    
+    auto elem_ids_r = o::LOs(elem_ids);
     Kokkos::Profiling::pushRegion("otherRoutines");
-    //use elem_ids to validate
-    gitrm_ionize(ptcls, gir, gp, gm, o::LOs(elem_ids), false);
-    gitrm_recombine(ptcls, gir, gp, gm, o::LOs(elem_ids), false);
-    gitrm_cross_diffusion(ptcls, &iter, gm, gp,dTime);
+    gitrm_ionize(ptcls, gir, gp, gm, elem_ids_r, false);
+    gitrm_recombine(ptcls, gir, gp, gm, elem_ids_r, false);
+    gitrm_cross_diffusion(ptcls, &iter, gm, gp,dTime, elem_ids);
     search(picparts, gp, elem_ids, debug);
-    gitrm_coulomb_collision(ptcls, &iter, gm, gp, dTime);
-    gitrm_thermal_force(ptcls, &iter, gm, gp, dTime);
+    gitrm_coulomb_collision(ptcls, &iter, gm, gp, dTime, elem_ids);
+    gitrm_thermal_force(ptcls, &iter, gm, gp, dTime, elem_ids);
     gitrm_surfaceReflection(ptcls, sm, gp, gm, false);
     search(picparts, gp, elem_ids, debug);
     Kokkos::Profiling::popRegion();
+    elem_ids_r = o::LOs(elem_ids);
+    gp.updateParticleDetection(elem_ids_r, iter, false);
     if(iter==0)
-      gp.updateParticleDetection(o::LOs(elem_ids), -1, false);
-    gp.updateParticleDetection(o::LOs(elem_ids), iter, false);
-    gp.updatePtclHistoryData(iter, o::LOs(elem_ids));
+      gp.updatePtclHistoryData(-1, elem_ids_r);
+    gp.updatePtclHistoryData(iter, elem_ids_r);
 
     Kokkos::Profiling::pushRegion("rebuild");
     rebuild(picparts, ptcls, elem_ids, debug);
@@ -347,7 +350,7 @@ int main(int argc, char** argv) {
     gm.writeResultAsMeshTag(gp.collectedPtcls);
   }
   if(histInterval >0) {
-    gp.writePtclStepHistoryFile("gitrm-history.nc", true);
+    gp.writePtclStepHistoryFile("gitrm-history.nc");
   }
   if(false && surfaceModel)
     sm.writeSurfaceDataFile("surfaces.nc");  
