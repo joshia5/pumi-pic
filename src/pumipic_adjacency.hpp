@@ -439,10 +439,12 @@ bool search_mesh_3d(o::Mesh& mesh, // (in) mesh
     if(looplimit && loops >= looplimit) {
       auto ptclsNotFound = PS_LAMBDA(const int& e, const int& pid, const int& mask) {
         if( mask > 0 && !ptcl_done[pid] ) {
-          auto searchElm = elem_ids[pid];
+          auto elm = elem_ids[pid];
           auto ptcl = pid_d(pid);
-          const auto ptclDest = makeVector3(pid, xtgt_ps_d);
-          const auto ptclOrigin = makeVector3(pid, x_ps_d);
+          const auto dest = makeVector3(pid, xtgt_ps_d);
+          const auto orig = makeVector3(pid, x_ps_d);
+          printf(" : elm %d ptcl %d  %.15f %.15f %.15f => %.15f %.15f %.15f\n",
+            elm, ptcl, orig[0], orig[1],orig[2], dest[0], dest[1],dest[2]);
         }
       };
       ps::parallel_for(ptcls, ptclsNotFound, "ptclsNotFound");

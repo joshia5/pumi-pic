@@ -25,12 +25,17 @@ bool checkIfRankZero() {
 }
 }//ns 
 
-GitrmParticles::GitrmParticles(p::Mesh& picparts, long int nPtcls, int nIter, double dT):
+GitrmParticles::GitrmParticles(p::Mesh& picparts, long int nPtcls, int nIter, 
+    double dT, int seed):
   ptcls(nullptr), picparts(picparts), mesh(*picparts.mesh()) {
   //move to where input is handled
   totalPtcls = nPtcls;
   numIterations = nIter;
   timeStep = dT;
+  if(seed)
+    rand_pool1024 = Kokkos::Random_XorShift1024_Pool<>(seed);
+  else
+   rand_pool1024 = Kokkos::Random_XorShift1024_Pool<>(time(NULL));
 }
 
 GitrmParticles::~GitrmParticles() {
@@ -53,6 +58,7 @@ void GitrmParticles::convertPtclWallCollisionData() {
 }
 
 void GitrmParticles::defineParticles(const o::LOs& ptclsInElem, int elId) {
+  bool debug = false;
   o::Int ne = mesh.nelems();
   PS::kkLidView ptcls_per_elem("ptcls_per_elem", ne);
   PS::kkGidView element_gids("element_gids", ne);
@@ -73,14 +79,15 @@ void GitrmParticles::defineParticles(const o::LOs& ptclsInElem, int elId) {
       ptcls_per_elem(i) = ptclsInElem[i];
     });
   }
-
-  printf(" ptcls/elem: \n");
-  Omega_h::parallel_for(ne, OMEGA_H_LAMBDA(const o::LO& i) {
-    const int np = ptcls_per_elem(i);
-    if (np > 0)
-      printf("%d , ", np);
-  });
-  printf("\n");
+  if(debug) {
+    printf(" ptcls/elem: \n");
+    Omega_h::parallel_for(ne, OMEGA_H_LAMBDA(const o::LO& i) {
+      const int np = ptcls_per_elem(i);
+      if (np > 0)
+        printf("%d , ", np);
+    });
+    printf("\n");
+  }
   //'sigma', 'V', and the 'policy' control the layout of the PS structure
   const int sigma = 1; //INT_MAX; // full sorting
   const int V = 128;//1024;
@@ -117,9 +124,9 @@ void GitrmParticles::assignParticles(const o::Reals& data, const o::LOs& elemIdO
   if(totalPtcls_)
     OMEGA_H_CHECK(totalPtcls_ == totalPtcls);
 
-  o::Write<o::LO> elemIdOfPtcls_w(numInitPtcls, -1);
-  o::Write<o::LO> ptclDataInds_w(numInitPtcls, -1);
-  o::Write<o::LO> numPtclsInElems_w(mesh.nelems(), 0);
+  o::Write<o::LO> elemIdOfPtcls_w(numInitPtcls, -1, "elemIdOfPtcls");
+  o::Write<o::LO> ptclDataInds_w(numInitPtcls, -1, "ptclDataInds");
+  o::Write<o::LO> numPtclsInElems_w(mesh.nelems(), 0, "numPtclsInElems");
   o::LO offset = pBegin;  
   auto lambda = OMEGA_H_LAMBDA(const o::LO& i) {
     auto el = elemIdOfPtclsAll[offset+i];//only for equal distribution
@@ -305,8 +312,8 @@ void GitrmParticles::findElemIdsOfPtclCoordsByAdjSearch(const o::Reals& data,
    printf("rank %d : Parent elements not found for first %d particles\n", maxLoop);
 
   //find all particles starting from parent
-  o::Write<o::LO> numPtclsInElemsAll(nel, 0);
-  o::Write<o::LO> elemIdOfPtclsAll(totalPtcls, -1);
+  o::Write<o::LO> numPtclsInElemsAll(nel, 0, "numPtclsInElemsAll");
+  o::Write<o::LO> elemIdOfPtclsAll(totalPtcls, -1, "elemIdOfPtclsAll");
   o::LO min = -1;
   if(parentElem >= 0)
     min = searchPtclsByAdjSearchFromParent(data, parentElem, numPtclsInElemsAll, 
@@ -340,8 +347,8 @@ void GitrmParticles::convertInitPtclElemIdsToCSR(const o::LOs& numPtclsInElems,
   o::LO debug = 0;
   auto nel = mesh.nelems();
   // csr data
-  o::Write<o::LO> ptclIdsInElem_w(numInitPtcls, -1);
-  o::Write<o::LO> ptclsFilledInElem(nel, 0); 
+  o::Write<o::LO> ptclIdsInElem_w(numInitPtcls, -1, "ptclIdsInElem");
+  o::Write<o::LO> ptclsFilledInElem(nel, 0, "ptclsFilledInElem"); 
   auto lambda = OMEGA_H_LAMBDA(const o::LO& id) {
     auto el = elemIdOfPtcls[id];
     auto old = Kokkos::atomic_fetch_add(&(ptclsFilledInElem[el]), 1);
@@ -376,7 +383,7 @@ void GitrmParticles::setPidsOfPtclsLoadedFromFile(const o::LOs& ptclIdPtrsOfElem
   auto pBegin = comm_rank* totalPtcls/comm_size;
 
   auto nel = mesh.nelems();
-  o::Write<o::LO> nextPtclInd(nel, 0);
+  o::Write<o::LO> nextPtclInd(nel, 0, "nextPtclInd");
   auto pid_ps = ptcls->get<PTCL_ID>();
   auto lambda = PS_LAMBDA(const int &elem, const int &pid, const int &mask) {
     if(mask > 0) {
@@ -498,9 +505,9 @@ void GitrmParticles::setPtclInitRndDistribution(o::Write<o::LO> &elemAndFace) {
   auto x_ps_prev_d = ptcls->get<PTCL_POS>();
   auto vel_d = ptcls->get<PTCL_VEL>();
   int psCapacity = ptcls->capacity();
-  o::HostWrite<o::Real> rnd1(psCapacity, 0);
-  o::HostWrite<o::Real> rnd2(psCapacity, 0);
-  o::HostWrite<o::Real> rnd3(psCapacity, 0);
+  o::HostWrite<o::Real> rnd1(psCapacity, "rnd1");
+  o::HostWrite<o::Real> rnd2(psCapacity, "rnd2");
+  o::HostWrite<o::Real> rnd3(psCapacity, "rnd3");
   std::srand(time(NULL));
   for(auto i=0; i<psCapacity; ++i) {
     rnd1[i] = (o::Real)(std::rand())/RAND_MAX;
@@ -511,7 +518,7 @@ void GitrmParticles::setPtclInitRndDistribution(o::Write<o::LO> &elemAndFace) {
   o::Reals rand2 = o::Reals(o::Write<o::Real>(rnd2));
   o::Reals rand3 = o::Reals(o::Write<o::Real>(rnd3));
 
-  o::Write<o::LO> elem_ids(psCapacity,-1);
+  o::Write<o::LO> elem_ids(psCapacity,-1, "elem_ids");
   auto lambda = PS_LAMBDA(const int &elem, const int &pid, const int &mask) {
     if(mask > 0) {
     //if(elemAndFace[1] >=0 && elem == elemAndFace[1]) {  
@@ -713,7 +720,7 @@ void GitrmParticles::findInitialBdryElemIdInADir(o::Real theta, o::Real phi, o::
 // Read GITR particle step data of all time steps; eg: rand numbers.
 int GitrmParticles::readGITRPtclStepDataNcFile(const std::string& ncFileName,
   int& maxNPtcls, bool debug) {
-  assert(USE_GITR_RND_NUMS == 1);
+  OMEGA_H_CHECK(USE_GITR_RND_NUMS == 1);
   std::cout << "Reading Test GITR step data " << ncFileName << "\n";
   // re-order the list in its constructor to leave out empty {}
   Field3StructInput fs({"intermediate"}, {}, {"nP", "nTHist", "dof"}, 0,
@@ -793,8 +800,8 @@ void GitrmParticles::initPtclHistoryData(int hstep) {
   nFilledPtclsInHistory = 0;
   int size = totalPtcls*dofHistory*nThistory;
   int nph = totalPtcls*nThistory;
-  ptclHistoryData = o::Write<o::Real>(size, 0);
-  ptclIdsOfHistoryData = o::Write<o::LO>(nph, -1);
+  ptclHistoryData = o::Write<o::Real>(size, 0, "ptclHistoryData");
+  ptclIdsOfHistoryData = o::Write<o::LO>(nph, -1, "ptclIdsOfHistoryData");
 }
 
 //all are collected by rank=0 
@@ -903,7 +910,7 @@ void GitrmParticles::writeDetectedParticles(std::string fname, std::string heade
 //detector grids, for pisces
 void GitrmParticles::initPtclDetectionData(int numGrid) {
   //o::LO numGrid = 14;
- collectedPtcls = o::Write<o::LO>(numGrid, 0);
+ collectedPtcls = o::Write<o::LO>(numGrid, 0, "collectedPtcls");
 }
 
 //TODO dimensions set for pisces to be removed

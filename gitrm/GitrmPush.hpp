@@ -15,9 +15,10 @@
 
 
 // Angle, DebyeLength etc were calculated at center of LONG tet, using BField.
-inline void gitrm_calculateE(GitrmParticles& gp, o::Mesh &mesh, bool debug, 
-    const GitrmMesh &gm) {
-
+inline void gitrm_calculateE(GitrmParticles& gp, o::Mesh &mesh, 
+    const GitrmMesh &gm, int debug=0) {
+  if(debug)
+    printf("CalculateE \n");
   const auto& f2rPtr = mesh.ask_up(o::FACE, o::REGION).a2ab;
   const auto& f2rElem = mesh.ask_up(o::FACE, o::REGION).ab2b;
   const auto coords = mesh.coords();
@@ -25,7 +26,7 @@ inline void gitrm_calculateE(GitrmParticles& gp, o::Mesh &mesh, bool debug,
 
   const int compareWithGitr = USE_GITR_RND_NUMS;
   const double biasPot = BIAS_POTENTIAL;
-  if(compareWithGitr)
+  //if(compareWithGitr)
     ++iTimePlusOne;
   
   //const auto larmorRadius_d = gm.larmorRadius_d;
@@ -82,8 +83,8 @@ inline void gitrm_calculateE(GitrmParticles& gp, o::Mesh &mesh, bool debug,
         auto bfel = p::elem_id_of_bdry_face_of_tet(faceId, f2rPtr, f2rElem);
         auto bface_coords = p::get_face_coords_of_tet(face_verts, coords, faceId);
         auto bmid = p::centroid_of_triangle(bface_coords);
-        if(debug)
-          printf("calcE0: ptcl %d ppos %.15e %.15e %.15e nelMesh %.15e TelMesh %.15e "
+        if(debug>1)
+          printf(" calcE0: ptcl %d ppos %.15e %.15e %.15e nelMesh %.15e TelMesh %.15e "
             "  bfidmid %.15e %.15e %.15e bfid %d bfel %d bface_verts %.15e %.15e %.15e ,"
             " %.15e %.15e %.15e, %.15e %.15e %.15e \n", 
             ptcl, pos[0], pos[1], pos[2], nelMesh, telMesh, bmid[0], bmid[1], bmid[2], 
@@ -106,8 +107,8 @@ inline void gitrm_calculateE(GitrmParticles& gp, o::Mesh &mesh, bool debug,
         }
         if(isnan(emag))
           emag = 0;
-        if(debug)
-          printf("calcE1- ptcl %d  distVec %.15e %.15e %.15e dirUnitVec %.15e %.15e %.15e\n",
+        if(debug>1)
+          printf(" calcE1- ptcl %d  distVec %.15e %.15e %.15e dirUnitVec %.15e %.15e %.15e\n",
            ptcl, distVector[0], distVector[1], distVector[2], dirUnitVector[0],
            dirUnitVector[1], dirUnitVector[2]);
 
@@ -119,16 +120,16 @@ inline void gitrm_calculateE(GitrmParticles& gp, o::Mesh &mesh, bool debug,
         for(int i=0; i<3; ++i)
           efield_ps(pid, i) = exd[i];
 
-        if(debug){
-          printf("calcE2: ptcl %d bdryface:%d  bfel %d emag %.15e "
+        if(debug>1){
+          printf(" calcE2: ptcl %d bdryface:%d  bfel %d emag %.15e "
               " pos %.15e %.15e %.15e closest %.15e %.15e %.15e distVec %.15e %.15e %.15e "
               " dirUnitVec %.15e %.15e %.15e \n", 
               ptcl, faceId, bfel, emag, pos[0], pos[1], pos[2],
               closest[0], closest[1], closest[2], distVector[0], distVector[1],
               distVector[2], dirUnitVector[0], dirUnitVector[1], dirUnitVector[2]);
         } 
-        if(debug)
-          printf("calcE_this:gitr ptcl %d timestep %d charge %d  dist2bdry %.15e"
+        if(debug>1)
+          printf(" calcE_this:gitr ptcl %d timestep %d charge %d  dist2bdry %.15e"
              " CLD %.15e efield %.15e  %.15e  %.15e  CLD %.15e  Nel %.15e Tel %.15e \n", 
             ptcl, iTimeStep, charge_ps(pid), d2bdry, childLangmuirDist, 
             efield_ps(pid, 0), efield_ps(pid, 1), 
@@ -139,8 +140,10 @@ inline void gitrm_calculateE(GitrmParticles& gp, o::Mesh &mesh, bool debug,
   ps::parallel_for(ptcls, run, "CalculateE");
 }
 
-inline void gitrm_borisMove(PS* ptcls, const GitrmMesh &gm, const o::Real dTime, 
-  bool debug=false) {
+inline void gitrm_borisMove(PS* ptcls, const GitrmMesh &gm, const o::Real dTime,
+   int debug=0) {
+  if(debug)
+    printf("Boris move \n");
   o::Mesh &mesh = gm.mesh;  
   const auto& coords = mesh.coords();
   const auto& mesh2verts = mesh.ask_elem_verts();
@@ -190,7 +193,7 @@ inline void gitrm_borisMove(PS* ptcls, const GitrmMesh &gm, const o::Real dTime,
         p::interpolate3dFieldTet(mesh2verts, BField, elem, bcc, bField);  
       } else if(useConstantBField || use2dInputFields) {
         p::interp2dVector(BField_2d, bX0, bZ0, bDx, bDz, bGridNx, bGridNz, pos,
-          bField, cylSymm, &ptcl);
+          bField, cylSymm);
       }
       auto vel0 = vel;
       OMEGA_H_CHECK((amu >0) && (dTime>0));
@@ -212,14 +215,6 @@ inline void gitrm_borisMove(PS* ptcls, const GitrmMesh &gm, const o::Real dTime,
       auto vel_ = vel;
       vel = vel + qpE;
       //vel=vel0;  //Making Lorentz force to be zero.
-      
-      if (false && ptcl==7)  {
-        printf("Inside push the original position to which increment is t be made ptcl %d is %.15e %.15e %.15e\n",ptcl, pos[0],pos[1],pos[2]);
-        printf("Inside push the velocity increment is to be made ptcl %d is %.15e %.15e %.15e\n", ptcl, vel[0],vel[1],vel[2]);
-        printf("Magnetic field %.15e %.15e %.15e\n",bField[0], bField[1], bField[2]);
-        printf("Electric field %.15e %.15e %.15e\n",eField[0], eField[1], eField[2]);
-      
-      }
       auto tgt = pos + vel * dTime;
       tgt_ps(pid, 0) = tgt[0];
       tgt_ps(pid, 1) = tgt[1];
@@ -227,8 +222,8 @@ inline void gitrm_borisMove(PS* ptcls, const GitrmMesh &gm, const o::Real dTime,
       vel_ps(pid, 0) = vel[0];
       vel_ps(pid, 1) = vel[1];
       vel_ps(pid, 2) = vel[2];
-      if(debug) {
-        printf("Boris0 ptcl %d timestep %d eField %.15e %.15e %.15e bField %.15e %.15e %.15e "
+      if(debug>1) {
+        printf(" Boris0 ptcl %d timestep %d eField %.15e %.15e %.15e bField %.15e %.15e %.15e "
           " qPrime %.15e coeff %.15e qpE %.15e %.15e %.15e vmxB %.15e %.15e %.15e "
           " qp_vmxB %.15e %.15e %.15e  v_prime %.15e %.15e %.15e vpxB %.15e %.15e %.15e "
           " c_vpxB %.15e %.15e %.15e  v_ %.15e %.15e %.15e\n", 
@@ -238,8 +233,8 @@ inline void gitrm_borisMove(PS* ptcls, const GitrmMesh &gm, const o::Real dTime,
           vpxB[0], vpxB[1], vpxB[2], cVpxB[0],cVpxB[1],cVpxB[2], vel_[0], vel_[1], vel_[2] );
       }
 
-      if(debug) {
-        printf("Boris1 ptcl %d timestep %d e %d charge %d pos %.15e %.15e %.15e =>  %.15e %.15e %.15e  "
+      if(debug>1) {
+        printf(" Boris1 ptcl %d timestep %d e %d charge %d pos %.15e %.15e %.15e =>  %.15e %.15e %.15e  "
           "vel %.15e %.15e %.15e =>  %.15e %.15e %.15e eField %.15e %.15e %.15e\n", ptcl, iTimeStep, 
           elem, charge, pos[0], pos[1], pos[2], tgt[0], tgt[1], tgt[2], 
           vel0[0], vel0[1], vel0[2], vel[0], vel[1], vel[2], eField[0], eField[1], eField[2]);

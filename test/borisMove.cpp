@@ -78,7 +78,7 @@ void search(p::Mesh& picparts, GitrmParticles& gp,  o::Write<o::LO>& elem_ids,
 
   bool isFound = p::search_mesh_3d<Particle>(*mesh, ptcls, x_ps, xtgt_ps, pid_ps, 
     elem_ids, gp.wallCollisionPts_w, gp.wallCollisionFaceIds_w, maxLoops, debug);
-  assert(isFound);
+  OMEGA_H_CHECK(isFound);
   Kokkos::Profiling::popRegion();
   gp.convertPtclWallCollisionData();
 }
@@ -205,14 +205,17 @@ int main(int argc, char** argv) {
     histInterval = atoi(argv[10]);
   
   std::string gitrDataFileName;
-  if(argc > 11)
+  if(argc > 11) {
     gitrDataFileName = argv[11];
+    if(!comm_rank)
+      printf(" gitr comparison DataFile %s\n", gitrDataFileName.c_str());
+  }
 
-  if (!comm_rank)
-    printf(" gitr comparison DataFile %s\n", gitrDataFileName.c_str());
-
-  GitrmParticles gp(picparts, totalNumPtcls, numIterations, dTime);
-  gp.initPtclHistoryData(histInterval);
+  std::srand(1);//time(NULL));// TODO kokkos
+  int seed = 1; //TODO set to 0 : no seed
+  GitrmParticles gp(picparts, totalNumPtcls, numIterations, dTime, seed);
+  if(histInterval > 0)
+    gp.initPtclHistoryData(histInterval);
   //current extruded mesh has Y, Z switched
   // ramp: 330, 90, 1.5, 200,10; tgt 324, 90...; upper: 110, 0
   if(!comm_rank)
@@ -238,14 +241,18 @@ int main(int argc, char** argv) {
   if(useGitrRandNums) {
     gp.readGITRPtclStepDataNcFile(gitrDataFileName, testNumPtcls, testRead);
     assert(testNumPtcls >= totalNumPtcls);
+  } else if(!gitrDataFileName.empty()) {
+    if(!comm_rank)
+      printf("USE_GITR_RND_NUMS is not set\n");
+    return EXIT_FAILURE;
   }
   auto* ptcls = gp.ptcls;
   gm.initBField(bFile); 
   auto initFields = gm.addTagsAndLoadProfileData(profFile, profFile, thermGradientFile);
   OMEGA_H_CHECK(!ionizeRecombFile.empty());
   GitrmIonizeRecombine gir(ionizeRecombFile, chargedTracking);
-
-  auto initBdry = gm.initBoundaryFaces(initFields, false);
+  printf("initBoundaryFaces\n");
+  auto initBdry = gm.initBoundaryFaces(initFields);
   
   printf("Preprocessing: dist-to-boundary faces\n");
   int nD2BdryTetSubDiv = D2BDRY_GRIDS_PER_TET;
@@ -281,8 +288,6 @@ int main(int argc, char** argv) {
   int np;
   int ps_np;
 
-  //TODO replace by Kokkos
-  std::srand(time(NULL));
   for(int iter=0; iter<numIterations; iter++) {
     ps_np = ptcls->nPtcls();
     MPI_Allreduce(&ps_np, &np, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
@@ -290,15 +295,16 @@ int main(int argc, char** argv) {
       fprintf(stderr, "No particles remain... exiting push loop\n");
       break;
     }
-    if(comm_rank == 0)// && (debug || iter%1000 ==0))
+    if(comm_rank == 0)
       fprintf(stderr, "=================iter %d===============\n", iter);
     Kokkos::Profiling::pushRegion("BorisMove");
 
     //if(iter==1)
-    //  gp.checkCompatibilityWithGITRflags(iter); //TODO for testing only
-    gitrm_findDistanceToBdry(gp, gm, false);
-    gitrm_calculateE(gp, *mesh, false, gm);
-    gitrm_borisMove(ptcls, gm, dTime, false);
+      //gp.checkCompatibilityWithGITRflags(iter); //TODO for testing only
+    int debug2 = 1;
+    gitrm_findDistanceToBdry(gp, gm, debug2);
+    gitrm_calculateE(gp, *mesh, gm, debug2);
+    gitrm_borisMove(ptcls, gm, dTime, debug2);
     Kokkos::Profiling::popRegion();
     MPI_Barrier(MPI_COMM_WORLD);
 
@@ -308,14 +314,13 @@ int main(int argc, char** argv) {
     search(picparts, gp, elem_ids, debug);
     auto elem_ids_r = o::LOs(elem_ids);
     Kokkos::Profiling::pushRegion("otherRoutines");
-    gitrm_ionize(ptcls, gir, gp, gm, elem_ids_r, false);
-    gitrm_recombine(ptcls, gir, gp, gm, elem_ids_r, false);
-    //TODO use elem_ids_r
-    gitrm_cross_diffusion(ptcls, &iter, gm, gp,dTime, elem_ids);
+    gitrm_ionize(ptcls, gir, gp, gm, elem_ids_r, debug2);
+    gitrm_recombine(ptcls, gir, gp, gm, elem_ids_r, debug2);
+    gitrm_cross_diffusion(ptcls, &iter, gm, gp,dTime, elem_ids_r, debug2);
     search(picparts, gp, elem_ids, debug);
-    gitrm_coulomb_collision(ptcls, &iter, gm, gp, dTime, elem_ids);
-    gitrm_thermal_force(ptcls, &iter, gm, gp, dTime, elem_ids);
-    gitrm_surfaceReflection(ptcls, sm, gp, gm, false);
+    gitrm_coulomb_collision(ptcls, &iter, gm, gp, dTime, elem_ids_r, debug2);
+    gitrm_thermal_force(ptcls, &iter, gm, gp, dTime, elem_ids_r, debug2);
+    gitrm_surfaceReflection(ptcls, sm, gp, gm, 2);//debug2);
     search(picparts, gp, elem_ids, debug);
     Kokkos::Profiling::popRegion();
     elem_ids_r = o::LOs(elem_ids);

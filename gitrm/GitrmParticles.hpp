@@ -2,9 +2,12 @@
 #define GITRM_PARTICLES_HPP
 
 #include <fstream>
+#include <cstdlib>
 #include <mpi.h>
 #include <netcdf>
 #include <Kokkos_Core.hpp>
+#include <Kokkos_Random.hpp>
+#include <impl/Kokkos_Timer.hpp>
 #include <particle_structs.hpp>
 #include <pumipic_mesh.hpp>
 #include "GitrmMesh.hpp"
@@ -31,7 +34,7 @@ typedef ps::ParticleStructure<Particle> PS;
 
 class GitrmParticles {
 public:
-  GitrmParticles(p::Mesh& picparts, long int totalPtcls, int nIter, double dT);
+  GitrmParticles(p::Mesh& picparts, long int totalPtcls, int nIter, double dT, int seed);
   ~GitrmParticles();
   GitrmParticles(GitrmParticles const&) = delete;
   void operator=(GitrmParticles const&) = delete;
@@ -42,6 +45,8 @@ public:
   o::Real timeStep = 0;
   long int totalPtcls = 0;
   int numIterations = 0;
+
+  Kokkos::Random_XorShift1024_Pool<> rand_pool1024;
 
   void assignParticles(const o::Reals& data, const o::LOs& elemIdOfPtclsAll, 
    o::LOs& numPtclsInElems, o::LOs& elemIdOfPtcls, o::LOs& ptclDataInds);
@@ -249,7 +254,7 @@ inline void gitrm_findDistanceToBdry(GitrmParticles& gp,
           }
         } //for nFaces
 
-        if(debug) {
+        if(debug>1) {
           auto fel = p::elem_id_of_bdry_face_of_tet(fid, f2rPtr, f2rElem);
           auto f = p::get_face_coords_of_tet(face_verts, coords, fid);
           auto bdryOrd = bdryFaceOrderedIds[fid]; 

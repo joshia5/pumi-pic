@@ -19,23 +19,12 @@ void GitrmIonizeRecombine::initIonizeRecombRateData( const std::string &fName, i
     "n_Densities_Ionize", "n_ChargeStates_Ionize"}, 2);
   
   readInputDataNcFileFS3(fName, ioni, debug);
-
-  //processFieldFileFS3(fName, ioni, debug);
   ionizeTempGridMin = ioni.getGridMin(0);
   ionizeDensGridMin = ioni.getGridMin(1);
   ionizeTempGridDT = ioni.getGridDelta(0);
   ionizeDensGridDn = ioni.getGridDelta(1);
   ionizeTempGridN = ioni.getNumGrids(0);
   ionizeDensGridN = ioni.getNumGrids(1);
-  /*
-  // require handles passed in or use temporary. Why ? TODO
-  auto ion1 = o::Reals(ioni.data);
-  auto ion2 = o::Reals(ioni.grid1);
-  auto ion3 = o::Reals(ioni.grid2);
-  ionizationRates = ion1;
-  gridTempIonize = ion2;
-  gridDensIonize = ion3;
-  */
   ionizationRates = o::Reals(ioni.data);
   gridTempIonize = o::Reals(ioni.grid1);
   gridDensIonize  = o::Reals(ioni.grid2);
@@ -45,7 +34,6 @@ void GitrmIonizeRecombine::initIonizeRecombRateData( const std::string &fName, i
     {"gridTemperature_Recombination", "gridDensity_Recombination", 
     "gridChargeState_Recombination"}, {"n_Temperatures_Recombine",
     "n_Densities_Recombine", "n_ChargeStates_Recombine"}, 2);
-  //processFieldFileFS3(fName, rec, debug);
   readInputDataNcFileFS3(fName, rec, debug);
 
   recombTempGridMin = rec.getGridMin(0);
@@ -57,6 +45,6 @@ void GitrmIonizeRecombine::initIonizeRecombRateData( const std::string &fName, i
   recombinationRates = o::Reals(rec.data);
   gridTempRec = o::Reals(rec.grid1);
   gridDensRec = o::Reals(rec.grid2);
- printf("recombDensGridN %d \n", recombDensGridN);
+  printf("recombDensGridN %d \n", recombDensGridN);
 }
 

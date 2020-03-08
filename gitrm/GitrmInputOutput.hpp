@@ -47,9 +47,9 @@ struct Field3StructInput {
     nGridRead = (nGridRead_in < 0) ? gridNames.size(): nGridRead_in;
     nVarNames = nVarNames_in;
     nComp = compNames.size();
-    assert(nComp <= MAX_SIZE);
-    assert(gridNames.size() <= MAX_SIZE);
-    assert(nGridNames.size() <= MAX_SIZE);
+    OMEGA_H_CHECK(nComp <= MAX_SIZE);
+    OMEGA_H_CHECK(gridNames.size() <= MAX_SIZE);
+    OMEGA_H_CHECK(nGridNames.size() <= MAX_SIZE);
   }
   std::vector<std::string> compNames;
   std::vector<std::string> gridNames;

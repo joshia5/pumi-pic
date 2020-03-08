@@ -10,28 +10,28 @@
 #include "GitrmInputOutput.hpp"
 
 double Field3StructInput::getGridDelta(int ind) {
-  assert(ind < MAX_SIZE && ind >=0);
-  assert(nGridVec.size() > ind && nGridVec[ind] > 0);
+  OMEGA_H_CHECK(ind < MAX_SIZE && ind >=0);
+  OMEGA_H_CHECK(nGridVec.size() > ind && nGridVec[ind] > 0);
   //return (getGridMax(ind) - getGridMin(ind))/(double)nGridVec[ind];
   auto second = (ind>0) ? ((ind>1)? (grid3[1]): grid2[1]) : grid1[1];
   return second - getGridMin(ind);
 }
 
 int Field3StructInput::getNumGrids(int ind) {
-  assert(ind < MAX_SIZE && ind >=0);
-  assert(nGridVec.size() > ind);
+  OMEGA_H_CHECK(ind < MAX_SIZE && ind >=0);
+  OMEGA_H_CHECK(nGridVec.size() > ind);
   return nGridVec[ind];
 }
 
 double Field3StructInput::getGridMin(int ind) {
-  assert(ind >=0 && ind < MAX_SIZE);
-  assert(MAX_SIZE ==3);
+  OMEGA_H_CHECK(ind >=0 && ind < MAX_SIZE);
+  OMEGA_H_CHECK(MAX_SIZE ==3);
   return (ind>0) ? ((ind>1)? (grid3[0]): grid2[0]) : grid1[0];
 }
 
 double Field3StructInput::getGridMax(int ind) {
-  assert(ind >=0 && ind < 3);
-  assert(MAX_SIZE == 3);
+  OMEGA_H_CHECK(ind >=0 && ind < 3);
+  OMEGA_H_CHECK(MAX_SIZE == 3);
   double max = 0;
   if(ind==0)
     max = grid1[grid1.size()-1];
@@ -275,8 +275,8 @@ void writeOutputNcFile( o::HostWrite<o::Real>& ptclHistoryData, int numPtcls,
   int dof, OutputNcFileFieldStruct& st, std::string outNcFileName) {
   //if ext not nc, 
   //outNcFileName = outNcFileName + std::to_string(i) + ".nc";
-  assert(dof == st.fieldNames.size());
-  assert(numPtcls == st.nDims[0]);
+  OMEGA_H_CHECK(dof == st.fieldNames.size());
+  OMEGA_H_CHECK(numPtcls == st.nDims[0]);
   int status = 0;
   try {
     netCDF::NcFile ncFile(outNcFileName, netCDF::NcFile::replace);
