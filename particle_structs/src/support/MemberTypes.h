@@ -3,7 +3,7 @@
 
 #include <cstdlib>
 
-namespace particle_structs {
+namespace pumipic {
 
 template<std::size_t N, typename T, typename... Types>
 struct MemberSize;
@@ -59,18 +59,8 @@ struct MemberTypeAtIndex<N,MemberTypes<Types...> > {
   using type = typename MemberTypeAtIndexImpl<N, Types...>::type;
 };
 
-//Get the type with array lengths stripped off
-template <class T> 
-struct BaseType {
-  using type=T;
-  static constexpr int size = 1;
-};
-template <class T, int N>
-struct BaseType<T[N]> {
-  using type = typename BaseType<T>::type;
-  static constexpr int size = N * BaseType<T>::size;
-};
-
 }
+
+namespace particle_structs = pumipic;
 
 #endif

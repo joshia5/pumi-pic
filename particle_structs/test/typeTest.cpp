@@ -5,12 +5,10 @@
 #include <MemberTypes.h>
 #include <SellCSigma.h>
 #include "Distribute.h"
-#include <psAssert.h>
+#include <ppAssert.h>
 
 using particle_structs::SellCSigma;
 using particle_structs::MemberTypes;
-using particle_structs::distribute_elements;
-using particle_structs::distribute_particles;
 
 int main(int argc, char** argv) {
   MPI_Init(&argc, &argv);

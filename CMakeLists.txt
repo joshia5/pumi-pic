@@ -45,7 +45,25 @@ bob_public_dep(NetCDF)
 find_package(Omega_h 9 REQUIRED)
 set(pumipic_USE_Omega_h_DEFAULT ON)
 message(STATUS "Found Omega_h: ${Omega_h_VERSION}")
+set(Omega_h_PREFIX ${Omega_h_PREFIX})
 bob_public_dep(Omega_h)
+
+# Find Kokkos
+find_package(Kokkos REQUIRED)
+set(KOKKOS_ENABLED true)
+include_directories(${KOKKOS_INCLUDE_DIR})
+
+include(${KOKKOS_INCLUDE_DIR}/../kokkos_generated_settings.cmake)
+message(STATUS "Kokkos enabled - Overriding compiler flags for consistency with Kokkos install")
+string(REPLACE ";" " " CMAKE_CXX_FLAGS "${KOKKOS_CXX_FLAGS}")
+message(STATUS "Kokkos CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS}")
+
+# bob package creation {
+set(particle_structures_USE_Kokkos_DEFAULT ON)
+get_filename_component(Kokkos_PREFIX ${KOKKOS_INCLUDE_DIR} DIRECTORY)
+set(Kokkos_PREFIX_DEFAULT ${Kokkos_PREFIX}/lib/CMake)
+bob_public_dep(Kokkos)
+# }
 
 set(debug_flag)
 if (PP_ENABLE_DEBUG_SYMBOLS)
@@ -59,24 +77,33 @@ endif()
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${debug_flag} ${opt_flag}")
 
-#particle structures
+# support
+add_subdirectory(support)
+include_directories(support)
+
+set(ALL_LIBS
+  support
+  )
+if (PP_ENABLE_DEBUG_MODE)
+   add_definitions(-DPP_DEBUG)
+   target_compile_definitions(support INTERFACE -DPP_DEBUG)
+endif()
+
+# particle structures
 add_subdirectory(particle_structs)
 set(ALL_LIBS
   support
   particleStructs
   )
-#pumipic
+
+# Reset cxx flags since they are picked up from omega-h
+set(CMAKE_CXX_FLAGS "${debug_flag} ${opt_flag}")
+
+# pumipic
 add_subdirectory(src)
 set(ALL_LIBS
   ${ALL_LIBS}
   pumipic
-  )
-
-#xgcp
-add_subdirectory(xgcp)
-set(ALL_LIBS
-  ${ALL_LIBS}
-  xgcp
   )
 
 #gitrm

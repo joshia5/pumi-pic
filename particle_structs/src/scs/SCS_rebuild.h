@@ -1,6 +1,6 @@
 #pragma once
-
-namespace particle_structs {
+#include <psMemberType.h>
+namespace pumipic {
   template<class DataTypes, typename MemSpace>
     bool SellCSigma<DataTypes,MemSpace>::reshuffle(kkLidView new_element,
                                                    kkLidView new_particle_elements,
@@ -246,10 +246,7 @@ namespace particle_structs {
       });
 
     if (new_particle_elements.size() > 0)
-      CopyNewParticlesToPS<SellCSigma<DataTypes, MemSpace>, DataTypes>(this, scs_data_swap,
-                                                                       new_particles,
-                                                                       num_new_ptcls,
-                                                                       new_particle_indices);
+      CopyViewsToViews<kkLidView, DataTypes>(scs_data_swap, new_particles, new_particle_indices);
 
     //set scs to point to new values
     C_ = new_C;

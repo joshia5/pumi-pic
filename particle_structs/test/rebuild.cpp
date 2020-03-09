@@ -4,13 +4,10 @@
 #include <MemberTypes.h>
 #include <SellCSigma.h>
 
-#include <psAssert.h>
 #include "Distribute.h"
 
 using particle_structs::SellCSigma;
 using particle_structs::MemberTypes;
-using particle_structs::distribute_particles;
-using particle_structs::distribute_elements;
 using particle_structs::getLastValue;
 using particle_structs::lid_t;
 typedef Kokkos::DefaultExecutionSpace exe_space;

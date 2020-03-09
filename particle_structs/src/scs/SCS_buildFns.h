@@ -1,5 +1,5 @@
 #pragma once
-namespace particle_structs {
+namespace pumipic {
   template<class DataTypes, typename MemSpace>
   int SellCSigma<DataTypes, MemSpace>::chooseChunkHeight(int maxC,
                                                          kkLidView ptcls_per_elem) {
@@ -209,16 +209,19 @@ namespace particle_structs {
         sum += chunk_widths(i) * C_local;
       });
     //Determine index for each particle
+#ifdef PP_DEBUG
+    auto ptcl_mask_local = particle_mask;
+#endif
     kkLidView particle_indices("new_particle_scs_indices", given_particles);
     Kokkos::parallel_for(given_particles, KOKKOS_LAMBDA(const lid_t& i) {
         lid_t new_elem = particle_elements(i);
         lid_t new_row = element_to_row_local(new_elem);
         particle_indices(i) = Kokkos::atomic_fetch_add(&row_index(new_row), C_local);
+#ifdef PP_DEBUG
+        assert(ptcl_mask_local(particle_indices(i)) != 0);
+#endif
       });
 
-    CopyNewParticlesToPS<SellCSigma<DataTypes, MemSpace>, DataTypes>(this, ptcl_data,
-                                                                     particle_info,
-                                                                     given_particles,
-                                                                     particle_indices);
+    CopyViewsToViews<kkLidView, DataTypes>(ptcl_data, particle_info, particle_indices);
   }
 }

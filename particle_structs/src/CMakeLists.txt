@@ -1,4 +1,5 @@
 include_directories(
+  ${CMAKE_CURRENT_SOURCE_DIR}/support
   ${CMAKE_CURRENT_SOURCE_DIR}/scs
   ${CMAKE_CURRENT_SOURCE_DIR}/csr
   ${CMAKE_CURRENT_SOURCE_DIR}
@@ -6,8 +7,13 @@ include_directories(
   )
 
 set(HEADERS
+  support/MemberTypes.h
+  support/MemberTypeArray.h
+  support/MemberTypeLibraries.h
+  support/Segment.h
   particle_structure.hpp
   ps_for.hpp
+  psMemberType.h
   scs/SCS_Macros.h
   scs/SCS_Types.h
   scs/SCSPair.h
@@ -31,7 +37,13 @@ target_include_directories(particleStructs INTERFACE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
   $<INSTALL_INTERFACE:include>)
 target_include_directories(particleStructs INTERFACE
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/support>
+  $<INSTALL_INTERFACE:include>)
+target_include_directories(particleStructs INTERFACE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/scs>
+  $<INSTALL_INTERFACE:include>)
+target_include_directories(particleStructs INTERFACE
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/csr>
   $<INSTALL_INTERFACE:include>)
 
 pumipic_export_lib(particleStructs "${HEADERS}")

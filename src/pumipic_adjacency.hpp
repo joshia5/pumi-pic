@@ -664,6 +664,7 @@ bool search_mesh(o::Mesh& mesh, ps::ParticleStructure< ParticleType >* ptcls,
   return found;
 }
 
+<<<<<<< HEAD
 OMEGA_H_DEVICE bool isPointWithinElemTet(const o::LOs& mesh2verts, 
    const o::Reals& coords, const o::Vector<3>& pos, const o::LO elem, 
    o::Vector<4>& bcc, const o::Real tol=1.0e-20) {
@@ -915,9 +916,9 @@ OMEGA_H_DEVICE o::Vector<3> closest_point_on_triangle(
   return ptq;
 }
 
-template < class ParticleType>
+template < class ParticleStruct>
 bool search_mesh_2d(o::Mesh& mesh, // (in) mesh
-                 ps::ParticleStructure< ParticleType >* ptcls, // (in) particle structure
+                 ParticleStruct* ptcls, // (in) particle structure
                  Segment3d x_ps_d, // (in) starting particle positions
                  Segment3d xtgt_ps_d, // (in) target particle positions
                  SegmentInt pid_d, // (in) particle ids
@@ -1069,6 +1070,9 @@ bool search_mesh_2d(o::Mesh& mesh, // (in) mesh
         rank, timer.seconds(), btime);
     fprintf(stderr, "%d pumipic search_2d loops %d\n", rank, loops);
   }
+#ifdef PP_DEBUG
+  return found;
+#endif
   int maxLoops = 0;
   MPI_Allreduce(&loops, &maxLoops, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
   int minLoops = 0;

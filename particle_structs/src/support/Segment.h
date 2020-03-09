@@ -2,14 +2,14 @@
 
 #include "MemberTypeLibraries.h"
 #include <type_traits>
-namespace particle_structs {
+namespace pumipic {
 
 template <typename Type, typename Device>
 class Segment {
 public:
   using Base=typename BaseType<Type>::type;
 
-  using ViewType=Kokkos::View<Type*, Device>;
+  using ViewType=View<Type*, Device>;
   Segment() {}
   Segment(ViewType v) : view(v){}
 
