@@ -221,7 +221,7 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
           xfid<0, ptcl, iTimeStep, charge_ps(pid), randn, P1, rateIon, dt);
     } //mask 
   };
-  ps::parallel_for(ptcls,lambda, "ionizeKernel");
+  p::parallel_for(ptcls,lambda, "ionizeKernel");
 } 
 
 
@@ -361,7 +361,7 @@ inline void gitrm_recombine(PS* ptcls, const GitrmIonizeRecombine& gir,
       }
     } //mask 
   };
-  ps::parallel_for(ptcls, lambda, "RecombineKernel");
+  p::parallel_for(ptcls, lambda, "RecombineKernel");
 } 
 
 #endif

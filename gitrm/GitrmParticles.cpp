@@ -89,10 +89,10 @@ void GitrmParticles::defineParticles(const o::LOs& ptclsInElem, int elId) {
     printf("\n");
   }
   //'sigma', 'V', and the 'policy' control the layout of the PS structure
-  const int sigma = 1; //INT_MAX; // full sorting
+  const int sigma = INT_MAX; // 1  sorting
   const int V = 128;//1024;
   Kokkos::TeamPolicy<Kokkos::DefaultExecutionSpace> policy(10000, 32);
-  printf("Constructing Particles\n");
+  printf("Constructing Particles with sigma %d\n", sigma);
   //Create the particle structure
   ptcls = new SellCSigma<Particle>(policy, sigma, V, ne, numInitPtcls,
                    ptcls_per_elem, element_gids);
@@ -135,6 +135,7 @@ void GitrmParticles::assignParticles(const o::Reals& data, const o::LOs& elemIdO
     Kokkos::atomic_increment(&numPtclsInElems_w[el]);
   };
   o::parallel_for(numInitPtcls, lambda, "assign_init_ptcls");
+  Kokkos::fence();
   elemIdOfPtcls = o::LOs(elemIdOfPtcls_w);
   ptclDataInds = o::LOs(ptclDataInds_w);
   numPtclsInElems = o::LOs(numPtclsInElems_w);
@@ -338,6 +339,7 @@ void GitrmParticles::findElemIdsOfPtclCoordsByAdjSearch(const o::Reals& data,
   //OMEGA_H_CHECK(min >=0);
   assignParticles(data, o::LOs(elemIdOfPtclsAll), numPtclsInElems, elemIdOfPtcls, 
     ptclDataInds);
+  printf(" assigned particles \n");
 }
 
 
@@ -403,7 +405,7 @@ void GitrmParticles::setPidsOfPtclsLoadedFromFile(const o::LOs& ptclIdPtrsOfElem
       pid_ps(pid) = ip;
     }
   };
-  ps::parallel_for(ptcls, lambda, "setPidsOfPtcls");
+  p::parallel_for(ptcls, lambda, "setPidsOfPtcls");
 }
 
 //To use ptcls, PS_LAMBDA is required, not parallel_for(#ptcls,OMEGA_H_LAMBDA
@@ -447,7 +449,7 @@ void GitrmParticles::setPtclInitData(const o::Reals& data) {
       }
     }
   };
-  ps::parallel_for(ptcls, lambda, "setPtclInitData");
+  p::parallel_for(ptcls, lambda, "setPtclInitData");
 }
 
 void GitrmParticles::initPtclChargeIoniRecombData() {
@@ -466,7 +468,7 @@ void GitrmParticles::initPtclChargeIoniRecombData() {
       prev_recomb_ps(pid) = 0;
     }
   };
-  ps::parallel_for(ptcls, lambda, "initPtclChargeIoniRecombData");
+  p::parallel_for(ptcls, lambda, "initPtclChargeIoniRecombData");
 }
 
 void GitrmParticles::initPtclSurfaceModelData() {
@@ -480,7 +482,7 @@ void GitrmParticles::initPtclSurfaceModelData() {
       ps_newVelMag(pid) = 0;
     }
   };
-  ps::parallel_for(ptcls, lambda, "initPtclSurfaceModelData");
+  p::parallel_for(ptcls, lambda, "initPtclSurfaceModelData");
 }
 
 void GitrmParticles::initPtclsInADirection(o::Real theta, o::Real phi, o::Real r, 
@@ -575,7 +577,7 @@ void GitrmParticles::setPtclInitRndDistribution(o::Write<o::LO> &elemAndFace) {
           vel[0], vel[1], vel[2], mask);
     }
   };
-  ps::parallel_for(ptcls, lambda, "setPtclInitRndDistribution");
+  p::parallel_for(ptcls, lambda, "setPtclInitRndDistribution");
 }
 
 // spherical coordinates (wikipedia), radius r=1.5m, inclination theta[0,pi] from the z dir,
@@ -721,7 +723,8 @@ void GitrmParticles::findInitialBdryElemIdInADir(o::Real theta, o::Real phi, o::
 int GitrmParticles::readGITRPtclStepDataNcFile(const std::string& ncFileName,
   int& maxNPtcls, bool debug) {
   OMEGA_H_CHECK(USE_GITR_RND_NUMS == 1);
-  std::cout << "Reading Test GITR step data " << ncFileName << "\n";
+  OMEGA_H_CHECK(!ncFileName.empty());
+  std::cout << "Reading Test GITR step data : " << ncFileName << "\n";
   // re-order the list in its constructor to leave out empty {}
   Field3StructInput fs({"intermediate"}, {}, {"nP", "nTHist", "dof"}, 0,
     {"RndIoni_at", "RndRecomb_at", "RndCollision_n1_at", "RndCollision_n2_at", 
@@ -745,16 +748,15 @@ int GitrmParticles::readGITRPtclStepDataNcFile(const std::string& ncFileName,
   testGitrOptCollision =  fs.getIntValueOf("Opt_Collision");
   testGitrOptSurfaceModel = fs.getIntValueOf("Opt_SurfaceModel");
 
-  //if(debug)
-    printf(" TestGITRdata: dof %d nT %d nP %d Index: rndIoni %d rndRec %d \n"
-      " rndCrossFieldDiff %d rndColl_n1 %d rndColl_n2 %d rndColl_xsi %d "
-      " rndReflection %d\n GITR run Flags: ioniRec %d diffusion %d "
-      " collision %d surfmodel %d \n", testGitrStepDataDof, testGitrStepDataNumTsteps,
-      testGitrStepDataNumPtcls, testGitrDataIoniRandInd, testGitrDataRecRandInd, 
-      testGitrCrossFieldDiffRndInd, testGitrCollisionRndn1Ind, 
-      testGitrCollisionRndn2Ind, testGitrCollisionRndxsiInd, 
-      testGitrReflectionRndInd, testGitrOptIoniRec, testGitrOptDiffusion,
-      testGitrOptCollision, testGitrOptSurfaceModel);
+  printf(" TestGITRdata: dof %d nT %d nP %d Index: rndIoni %d rndRec %d \n"
+    " rndCrossFieldDiff %d rndColl_n1 %d rndColl_n2 %d rndColl_xsi %d "
+    " rndReflection %d\n GITR run Flags: ioniRec %d diffusion %d "
+    " collision %d surfmodel %d \n", testGitrStepDataDof, testGitrStepDataNumTsteps,
+    testGitrStepDataNumPtcls, testGitrDataIoniRandInd, testGitrDataRecRandInd, 
+    testGitrCrossFieldDiffRndInd, testGitrCollisionRndn1Ind, 
+    testGitrCollisionRndn2Ind, testGitrCollisionRndxsiInd, 
+    testGitrReflectionRndInd, testGitrOptIoniRec, testGitrOptDiffusion,
+    testGitrOptCollision, testGitrOptSurfaceModel);
 
   return stat;
 }
@@ -878,7 +880,7 @@ void GitrmParticles::updatePtclHistoryData(int iter, const o::LOs& elem_ids) {
       Kokkos::atomic_exchange(&(ptclIds[ptcl]), ptcl);
     }// mask
   };
-  ps::parallel_for(ptcls, lambda, "updateStepData");
+  p::parallel_for(ptcls, lambda, "updateStepData");
 }
 
 void GitrmParticles::writeDetectedParticles(std::string fname, std::string header) {
@@ -955,7 +957,7 @@ void GitrmParticles::updateParticleDetection(const o::LOs& elem_ids, o::LO iter,
       }
     }
   };
-  ps::parallel_for(ptcls, lamb, "StoreDetectedData");
+  p::parallel_for(ptcls, lamb, "StoreDetectedData");
 }
 
 // gridsR gets preference. If >1 then gridsZ not taken
@@ -983,5 +985,5 @@ void GitrmParticles::storePtclDataInGridsRZ(o::LO iter, o::Write<o::LO>& data_d,
       }
     } //mask
   };
-  ps::parallel_for(ptcls, lamb);
+  p::parallel_for(ptcls, lamb);
 }

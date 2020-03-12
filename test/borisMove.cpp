@@ -71,7 +71,7 @@ void search(p::Mesh& picparts, GitrmParticles& gp,  o::Write<o::LO>& elem_ids,
   Kokkos::Profiling::pushRegion("gitrm_search");
   PS* ptcls = gp.ptcls;
   assert(ptcls->nElems() == mesh->nelems());
-  Omega_h::LO maxLoops = 200;
+  Omega_h::LO maxLoops = 10;
   auto x_ps = ptcls->get<0>();
   auto xtgt_ps = ptcls->get<1>();
   auto pid_ps = ptcls->get<2>();
@@ -212,7 +212,7 @@ int main(int argc, char** argv) {
   }
 
   std::srand(1);//time(NULL));// TODO kokkos
-  int seed = 1; //TODO set to 0 : no seed
+  int seed = 0;//1; //TODO set to 0 : no seed
   GitrmParticles gp(picparts, totalNumPtcls, numIterations, dTime, seed);
   if(histInterval > 0)
     gp.initPtclHistoryData(histInterval);
@@ -301,7 +301,8 @@ int main(int argc, char** argv) {
 
     //if(iter==1)
       //gp.checkCompatibilityWithGITRflags(iter); //TODO for testing only
-    int debug2 = 1;
+    debug = false; //search
+    int debug2 = 0;  //routines
     gitrm_findDistanceToBdry(gp, gm, debug2);
     gitrm_calculateE(gp, *mesh, gm, debug2);
     gitrm_borisMove(ptcls, gm, dTime, debug2);
@@ -320,7 +321,7 @@ int main(int argc, char** argv) {
     search(picparts, gp, elem_ids, debug);
     gitrm_coulomb_collision(ptcls, &iter, gm, gp, dTime, elem_ids_r, debug2);
     gitrm_thermal_force(ptcls, &iter, gm, gp, dTime, elem_ids_r, debug2);
-    gitrm_surfaceReflection(ptcls, sm, gp, gm, 2);//debug2);
+    gitrm_surfaceReflection(ptcls, sm, gp, gm, 0);//debug2);
     search(picparts, gp, elem_ids, debug);
     Kokkos::Profiling::popRegion();
     elem_ids_r = o::LOs(elem_ids);
@@ -357,7 +358,7 @@ int main(int argc, char** argv) {
   if(histInterval >0) {
     gp.writePtclStepHistoryFile("gitrm-history.nc");
   }
-  if(false && surfaceModel)
+  if(surfaceModel)
     sm.writeSurfaceDataFile("surfaces.nc");  
   Omega_h::vtk::write_parallel("meshvtk", mesh, mesh->dim());
 

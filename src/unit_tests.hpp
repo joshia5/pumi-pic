@@ -267,25 +267,22 @@ void print_mesh_stat(Omega_h::Mesh &m, bool coords=true)
             << " #verts " << m.nverts()
             << "\n";
 
-  if(coords)
-  {
+  if(coords)  {
     const auto coords = m.coords();
-    std::cout << "\n#Coords: size=" << coords.size() << " (3 x verts)\n\t";
-
-    
+    std::cout << "\n#Coords: size=" << coords.size() << " (3 x verts)\n\t";    
     auto printCoords = OMEGA_H_LAMBDA(o::LO i) {
       if( i<20 )
         printf("coords[%2d] %.4f\n", i, coords[i]);
     };
     o::parallel_for(coords.size(), printCoords, "printCoords");
-
     const auto mesh2verts = m.ask_elem_verts();
     std::cout << "#ask_elem_verts: " << mesh2verts.size() << "\n"; //LOs
     auto printElems = OMEGA_H_LAMBDA(o::LO ielem) {
       if(ielem<2) {
         auto ttv2v = Omega_h::gather_verts<4>(mesh2verts, ielem);
         const auto M = Omega_h::gather_vectors<4, 3>(coords, ttv2v);
-        p::print_matrix(M);
+        for(o::LO i=0; i<4; ++i)
+          printf("M%d %.4f, %.4f, %.4f\n", i, M[i][0], M[i][1], M[i][2]);
         printf("Vertex IDS :");
         for(int i=0; i<4; ++i)
         {

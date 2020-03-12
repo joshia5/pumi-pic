@@ -14,13 +14,12 @@
 
 using pumipic::fp_t;
 using pumipic::Vector3d;
-using particle_structs::lid_t;
-using particle_structs::SellCSigma;
-using particle_structs::MemberTypes;
+using pumipic::lid_t;
+using pumipic::SellCSigma;
+using pumipic::MemberTypes;
 
 namespace o = Omega_h;
 namespace p = pumipic;
-namespace ps = particle_structs;
 
 typedef MemberTypes < Vector3d, Vector3d, int,  Vector3d, Vector3d, 
    int, fp_t, fp_t, int, fp_t, fp_t, int, fp_t> Particle;
@@ -30,7 +29,7 @@ enum {PTCL_POS, PTCL_NEXT_POS, PTCL_ID, PTCL_VEL, PTCL_EFIELD, PTCL_CHARGE,
  PTCL_WEIGHT, PTCL_FIRST_IONIZEZ, PTCL_PREV_IONIZE, PTCL_FIRST_IONIZET, 
  PTCL_PREV_RECOMBINE, PTCL_HIT_NUM, PTCL_VMAG_NEW};
 
-typedef ps::ParticleStructure<Particle> PS;
+typedef p::ParticleStructure<Particle> PS;
 
 class GitrmParticles {
 public:
@@ -273,7 +272,7 @@ inline void gitrm_findDistanceToBdry(GitrmParticles& gp,
       } //if nFaces 
     }
   };
-  ps::parallel_for(ptcls, lambda);
+  p::parallel_for(ptcls, lambda);
   gp.closestPoints = o::Reals(closestPoints);
   gp.closestBdryFaceIds = o::LOs(closestBdryFaceIds);
 }

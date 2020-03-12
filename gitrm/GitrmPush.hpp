@@ -137,7 +137,7 @@ inline void gitrm_calculateE(GitrmParticles& gp, o::Mesh &mesh,
       } //faceId
     } //mask
   };
-  ps::parallel_for(ptcls, run, "CalculateE");
+  p::parallel_for(ptcls, run, "CalculateE");
 }
 
 inline void gitrm_borisMove(PS* ptcls, const GitrmMesh &gm, const o::Real dTime,
@@ -241,7 +241,7 @@ inline void gitrm_borisMove(PS* ptcls, const GitrmMesh &gm, const o::Real dTime,
       }
     }// mask
   };
-  ps::parallel_for(ptcls, boris, "BorisMove");
+  p::parallel_for(ptcls, boris, "BorisMove");
 }
 
 inline void neutralBorisMove(PS* ptcls,  const o::Real dTime) {
@@ -261,7 +261,7 @@ inline void neutralBorisMove(PS* ptcls,  const o::Real dTime) {
       vel_ps(pid, 2) = vel[2];      
     }// mask
   };
-  ps::parallel_for(ptcls, boris, "neutralBorisMove");
+  p::parallel_for(ptcls, boris, "neutralBorisMove");
 } 
 
 inline void neutralBorisMove_float(PS* ptcls,  const o::Real dTime, bool debug = false) {
@@ -291,7 +291,7 @@ inline void neutralBorisMove_float(PS* ptcls,  const o::Real dTime, bool debug =
     
     }// mask
   };
-  ps::parallel_for(ptcls, boris, "neutralBorisMove");
+  p::parallel_for(ptcls, boris, "neutralBorisMove");
 } 
 
 #endif //define

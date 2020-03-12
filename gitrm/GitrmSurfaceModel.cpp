@@ -83,12 +83,13 @@ void GitrmSurfaceModel::initSurfaceModelData(std::string ncFile, bool debug) {
   sputtDistribution = o::Write<o::Real>(nDist,0, "surfSputtDist"); //9k/detFace
   reflDistribution = o::Write<o::Real>(nDist,0, "surfReflDist"); //9k/detFace
   auto nf = mesh.nfaces();
-  mesh.add_tag<o::Int>(o::FACE, "SumParticlesStrike", 1, o::Read<o::Int>(nf));
-  mesh.add_tag<o::Int>(o::FACE, "SputtYldCount", 1, o::Read<o::Int>(nf));
-  mesh.add_tag<o::Real>(o::FACE, "SumWeightStrike", 1, o::Reals(nf));
-  mesh.add_tag<o::Real>(o::FACE, "GrossDeposition", 1, o::Reals(nf));
-  mesh.add_tag<o::Real>(o::FACE, "GrossErosion", 1, o::Reals(nf));
-  mesh.add_tag<o::Real>(o::FACE, "AveSputtYld", 1, o::Reals(nf)); 
+  mesh.add_tag<o::Int>(o::FACE, "SumParticlesStrike", 1, o::Read<o::Int>(nf,
+   0, "SumParticlesStrike"));
+  mesh.add_tag<o::Int>(o::FACE, "SputtYldCount", 1, o::Read<o::Int>(nf, 0, "SputtYldCount"));
+  mesh.add_tag<o::Real>(o::FACE, "SumWeightStrike", 1, o::Reals(nf, 0, "SumWeightStrike"));
+  mesh.add_tag<o::Real>(o::FACE, "GrossDeposition", 1, o::Reals(nf, 0, "GrossDeposition"));
+  mesh.add_tag<o::Real>(o::FACE, "GrossErosion", 1, o::Reals(nf, 0, "GrossErosion"));
+  mesh.add_tag<o::Real>(o::FACE, "AveSputtYld", 1, o::Reals(nf, 0, "AveSputtYld")); 
 }
 
 void GitrmSurfaceModel::make2dCDF(const int nX, const int nY, const int nZ, 

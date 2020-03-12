@@ -153,27 +153,6 @@ OMEGA_H_DEVICE void cartesian_to_spherical(const o::Real &x, const o::Real &y,
   phi = acos(z/r);
 }
 
-template< o::LO N>
-OMEGA_H_DEVICE void print_matrix(const Omega_h::Matrix<3, N> &M) {
-  for(o::LO i=0; i<N; ++i)
-  printf("M%d %.4f, %.4f, %.4f\n", i, M[i][0], M[i][1], M[i][2]);
-}
-
-template< o::LO N>
-OMEGA_H_DEVICE void print_few_vectors(const o::Few<o::Vector<3>, N> &M) {
-  for(o::LO i=0; i<N; ++i)
-  printf("%d: %.4f, %.4f, %.4f\n", i, M[i][0], M[i][1], M[i][2]);
-}
-
-OMEGA_H_DEVICE void printPtclPathEndPointsAndTet(o::LO id, o::LO elem, 
-    o::Vector<3>& orig, o::Vector<3>& dest, o::Matrix<3, 4>& M) {
-  printf("PATH ptcl %d e: %d orig: %g %g %g dest: %g %g %g "
-        "Tet: %g %g %g  %g %g %g  %g %g %g  %g %g %g \n", 
-    id, elem, orig[0], orig[1], orig[2], dest[0], dest[1], dest[2], 
-    M[0][0], M[0][1], M[0][2], M[1][0], M[1][1], M[1][2],
-    M[2][0], M[2][1], M[2][2], M[3][0], M[3][1], M[3][2]);
-}
-
 /** @brief To interpolate field ONE component at atime from 
  *    nComp-component(dof) 2D data
  *  @Note: This function is only for regular structured grid of data.
@@ -389,9 +368,9 @@ OMEGA_H_DEVICE o::Real interpolate2d_field(const o::Reals& data,
 }
 
 OMEGA_H_DEVICE o::Real interpolate2d_wgrid(const o::Reals& data, 
-  const o::Reals& gridx, const o::Reals& gridz, const o::LO nx, const o::LO nz, 
-  const o::Vector<3>& pos, const bool cylSymm = true, 
-  const o::LO nComp = 1, const o::LO comp = 0, bool debug= false) {
+   const o::Reals& gridx, const o::Reals& gridz, const o::LO nx, const o::LO nz, 
+   const o::Vector<3>& pos, const bool cylSymm = true, const o::LO nComp = 1,
+   const o::LO comp = 0, bool debug= false) {
   auto x = pos[0];
   auto z = pos[2]; 
   auto dx = gridx[1] - gridx[0];
@@ -401,10 +380,14 @@ OMEGA_H_DEVICE o::Real interpolate2d_wgrid(const o::Reals& data,
   o::LO j = floor((z - gridz[0])/dz);
   if (i < 0) i=0;
   if (j < 0) j=0;
+
+printf("interp-wgrid: xz %g %g grids %g %g : ij %d %d dxdz %g %g gridsize %d %d\n", x, z, 
+    gridx[0], gridx[1], i, j, dx, dz, gridx.size(), gridz.size());
+
   auto gridXi = gridx[i];
-  auto gridXip1 = gridx[i+1];    
+  auto gridXip1 = (i>= nx-1) ? 0 : gridx[i+1];    
   auto gridZj = gridz[j];
-  auto gridZjp1 = gridz[j+1];
+  auto gridZjp1 = (j>=nz-1) ? 0: gridz[j+1];
   if(debug)
     printf("pos %g %g %g dx,z %g %g i,j %d %d grids %g %g %g %g\n", 
       x,pos[1],z, dx, dz, i, j, gridXi, gridXip1, gridZj, gridZjp1);
