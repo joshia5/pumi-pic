@@ -15,6 +15,7 @@
 #include "GitrmCoulombCollision.hpp"
 #include "GitrmThermalForce.hpp"
 #include "GitrmCrossDiffusion.hpp"
+#include "GitrmSpectroscopy.hpp"
 
 void printTiming(const char* name, double t) {
   fprintf(stderr, "kokkos %s (seconds) %f\n", name, t);
@@ -71,7 +72,7 @@ void search(p::Mesh& picparts, GitrmParticles& gp,  o::Write<o::LO>& elem_ids,
   Kokkos::Profiling::pushRegion("gitrm_search");
   PS* ptcls = gp.ptcls;
   assert(ptcls->nElems() == mesh->nelems());
-  Omega_h::LO maxLoops = 10;
+  Omega_h::LO maxLoops = 200;
   auto x_ps = ptcls->get<0>();
   auto xtgt_ps = ptcls->get<1>();
   auto pid_ps = ptcls->get<2>();
@@ -126,10 +127,15 @@ int main(int argc, char** argv) {
     exit(1);
   }
   bool piscesRun = true; // add as argument later
-  bool chargedTracking = true; //false for neutral tracking
-  bool debug = false;
-  bool surfaceModel = true;
+  bool debug = false; //search
+  int debug2 = 0;  //routines
+  bool surfacemodel = true;
+  bool spectroscopy = false;
+  bool thermal_force = false;
+  bool coulomb_collision = false ;
+  bool diffusion = false;
 
+  bool chargedTracking = true; //false for neutral tracking
   auto deviceCount = 0;
   cudaGetDeviceCount(&deviceCount);
 
@@ -211,7 +217,7 @@ int main(int argc, char** argv) {
       printf(" gitr comparison DataFile %s\n", gitrDataFileName.c_str());
   }
 
-  std::srand(1);//time(NULL));// TODO kokkos
+  std::srand(time(NULL));// TODO kokkos
   int seed = 0;//1; //TODO set to 0 : no seed
   GitrmParticles gp(picparts, totalNumPtcls, numIterations, dTime, seed);
   if(histInterval > 0)
@@ -225,9 +231,8 @@ int main(int argc, char** argv) {
   // TODO use picparts 
   GitrmMesh gm(*mesh);
 
-  if(CREATE_GITR_MESH) {
+  if(CREATE_GITR_MESH)
     gm.createSurfaceGitrMesh();
-  }
 
   if(piscesRun) {
     gm.markDetectorSurfaces(true);
@@ -279,6 +284,10 @@ int main(int argc, char** argv) {
   }
 
   GitrmSurfaceModel sm(gm, surfModelFile);
+  GitrmSpectroscopy sp;
+
+  //ioni_recomb diffusion coulomb_collision thermal_force surfacemodel spectroscopy
+  //  gp.checkCompatibilityWithGITRflags(iter);
 
   if(debug)
     profileAndInterpolateTest(gm, true); //move to unit_test
@@ -287,7 +296,8 @@ int main(int argc, char** argv) {
   auto end_init = std::chrono::system_clock::now();
   int np;
   int ps_np;
-
+  
+  gp.updatePtclHistoryData(-1, o::LOs(1,-1, "history-dummy"));
   for(int iter=0; iter<numIterations; iter++) {
     ps_np = ptcls->nPtcls();
     MPI_Allreduce(&ps_np, &np, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
@@ -299,35 +309,38 @@ int main(int argc, char** argv) {
       fprintf(stderr, "=================iter %d===============\n", iter);
     Kokkos::Profiling::pushRegion("BorisMove");
 
-    //if(iter==1)
-      //gp.checkCompatibilityWithGITRflags(iter); //TODO for testing only
-    debug = false; //search
-    int debug2 = 0;  //routines
     gitrm_findDistanceToBdry(gp, gm, debug2);
     gitrm_calculateE(gp, *mesh, gm, debug2);
     gitrm_borisMove(ptcls, gm, dTime, debug2);
     Kokkos::Profiling::popRegion();
     MPI_Barrier(MPI_COMM_WORLD);
-
     const auto psCapacity = ptcls->capacity();
     assert(psCapacity > 0);
     o::Write<o::LO> elem_ids(psCapacity,-1);
     search(picparts, gp, elem_ids, debug);
     auto elem_ids_r = o::LOs(elem_ids);
     Kokkos::Profiling::pushRegion("otherRoutines");
+    if(spectroscopy)
+      gitrm_spectroscopy(ptcls, sp, elem_ids_r);
+
     gitrm_ionize(ptcls, gir, gp, gm, elem_ids_r, debug2);
     gitrm_recombine(ptcls, gir, gp, gm, elem_ids_r, debug2);
-    gitrm_cross_diffusion(ptcls, &iter, gm, gp,dTime, elem_ids_r, debug2);
-    search(picparts, gp, elem_ids, debug);
-    gitrm_coulomb_collision(ptcls, &iter, gm, gp, dTime, elem_ids_r, debug2);
-    gitrm_thermal_force(ptcls, &iter, gm, gp, dTime, elem_ids_r, debug2);
-    gitrm_surfaceReflection(ptcls, sm, gp, gm, 0);//debug2);
-    search(picparts, gp, elem_ids, debug);
+    if(diffusion) {
+      gitrm_cross_diffusion(ptcls, &iter, gm, gp,dTime, elem_ids_r, debug2);
+      search(picparts, gp, elem_ids, debug);
+    }
+    if(coulomb_collision)
+      gitrm_coulomb_collision(ptcls, &iter, gm, gp, dTime, elem_ids_r, debug2);
+    if(thermal_force)
+      gitrm_thermal_force(ptcls, &iter, gm, gp, dTime, elem_ids_r, debug2);
+    if(surfacemodel) {
+      gitrm_surfaceReflection(ptcls, sm, gp, gm, debug2);
+      search(picparts, gp, elem_ids, debug);
+    }
+    
     Kokkos::Profiling::popRegion();
     elem_ids_r = o::LOs(elem_ids);
     gp.updateParticleDetection(elem_ids_r, iter, false);
-    if(iter==0)
-      gp.updatePtclHistoryData(-1, elem_ids_r);
     gp.updatePtclHistoryData(iter, elem_ids_r);
 
     Kokkos::Profiling::pushRegion("rebuild");
@@ -355,11 +368,14 @@ int main(int argc, char** argv) {
     gp.writeDetectedParticles(fname, "piscesDetected");
     gm.writeResultAsMeshTag(gp.collectedPtcls);
   }
-  if(histInterval >0) {
+  if(histInterval >0)
     gp.writePtclStepHistoryFile("gitrm-history.nc");
-  }
-  if(surfaceModel)
-    sm.writeSurfaceDataFile("surfaces.nc");  
+  
+  if(surfacemodel)
+    sm.writeSurfaceDataFile("gitrm-surface.nc");  
+  if(spectroscopy)
+    sp.writeSpectroscopyFile("gitrm-spec.nc");
+
   Omega_h::vtk::write_parallel("meshvtk", mesh, mesh->dim());
 
   fprintf(stderr, "Done\n");
