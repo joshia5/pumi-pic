@@ -380,10 +380,6 @@ OMEGA_H_DEVICE o::Real interpolate2d_wgrid(const o::Reals& data,
   o::LO j = floor((z - gridz[0])/dz);
   if (i < 0) i=0;
   if (j < 0) j=0;
-
-printf("interp-wgrid: xz %g %g grids %g %g : ij %d %d dxdz %g %g gridsize %d %d\n", x, z, 
-    gridx[0], gridx[1], i, j, dx, dz, gridx.size(), gridz.size());
-
   auto gridXi = gridx[i];
   auto gridXip1 = (i>= nx-1) ? 0 : gridx[i+1];    
   auto gridZj = gridz[j];

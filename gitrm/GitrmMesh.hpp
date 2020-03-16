@@ -23,7 +23,6 @@ namespace p = pumipic;
 
 namespace gitrm {
   const double surfaceAndMaterialModelZ = 74.0;
-
 }
 
 //TODO put in config class
@@ -52,12 +51,12 @@ const o::Real CONSTANT_EFIELD0 = 0;
 const o::Real CONSTANT_EFIELD1 = 0;
 const o::Real CONSTANT_EFIELD2 = 0;
 
-const o::Real CONSTANT_BFIELD0 = 5;  //TODO FIXME
-const o::Real CONSTANT_BFIELD1 = 5;  //TODO FIXME
+const o::Real CONSTANT_BFIELD0 = 0;
+const o::Real CONSTANT_BFIELD1 = 0;
 const o::Real CONSTANT_BFIELD2 = -0.08;
 
-const o::Real CONSTANT_FLOW_VELOCITY0 = 0;  //TODO FIXME
-const o::Real CONSTANT_FLOW_VELOCITY1 = 0;  //TODO FIXME
+const o::Real CONSTANT_FLOW_VELOCITY0 = 0;
+const o::Real CONSTANT_FLOW_VELOCITY1 = 0;
 const o::Real CONSTANT_FLOW_VELOCITY2 = -20000;
 // 3 vtx, 1 bdry faceId & 1 bdry elId as Reals. 
 enum { BDRY_FACE_STORAGE_SIZE_PER_FACE = 1, BDRY_FACE_STORAGE_IDS=0 };

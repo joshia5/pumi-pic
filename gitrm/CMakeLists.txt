@@ -8,6 +8,7 @@ set(HEADERS
   GitrmCoulombCollision.hpp
   GitrmThermalForce.hpp
   GitrmCrossDiffusion.hpp
+  GitrmSpectroscopy.hpp
 )
 
 set(SOURCES
@@ -16,7 +17,8 @@ set(SOURCES
   GitrmIonizeRecombine.cpp
   GitrmInputOutput.cpp
   GitrmSurfaceModel.cpp
- )
+  GitrmSpectroscopy.cpp
+)
 
 add_library(gitrm ${SOURCES})
 target_include_directories(gitrm INTERFACE
