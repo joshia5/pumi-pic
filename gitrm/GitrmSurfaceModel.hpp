@@ -256,7 +256,6 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
   //const auto angDist = sm.angDist; // Adist
   const auto dEdist = sm.dEdist;
   const auto dAdist = sm.dAdist; 
-
   //data collection
   //auto surfaces = mesh.get_array<o::LO>(o::FACE, "SurfaceIndex");
   auto sumPtclStrike = o::deep_copy(
@@ -367,9 +366,9 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
 
       if(materialZ > 0) {
         Y0 = p::interpolate2d_wgrid(sputtYld, angSputtRefCoeff, enLogSputtRefCoef,
-           nAngSputtRefCoeff, nEnSputtRefCoeff, thetaImpact, log10(E0), true,1,0,true);
+           nAngSputtRefCoeff, nEnSputtRefCoeff, thetaImpact, log10(E0), true,1,0);
         R0 = p::interpolate2d_wgrid(reflYld, angSputtRefCoeff, enLogSputtRefCoef,
-          nAngSputtRefCoeff, nEnSputtRefCoeff, thetaImpact, log10(E0), true,1,0,true);
+          nAngSputtRefCoeff, nEnSputtRefCoeff, thetaImpact, log10(E0), true,1,0);
       }
       if(debug>1)
         printf(" surf4 timestep %d ptcl %d interpolated Y0 %g R0 %g\n", iTimeStep,
@@ -403,6 +402,7 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
       o::Int addSpYCount = 0;
       o::Real addSumWtStk = 0;
       o::Int addSumPtclStk = 0;
+
       if(debug>1)
         printf(" surf5 timestep %d ptcl %d totalYR %g surfId %d gridId %d "
           "sputtProb %g rand7 %g bdry %d \n", 
@@ -430,9 +430,8 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
             printf(" surf6 reflects timestep %d ptcl %d  weight %g newWeight %g "
               "totalYR %g aInterpVal %g  eInterpVal %g \n", 
               iTimeStep, ptcl, weight, newWeight, totalYR, aInterpVal, eInterpVal);
-
-          auto eDistInd = floor((eInterpVal-en0Dist)/dEdist);
-          auto aDistInd = floor((aInterpVal-ang0Dist)/dAdist);
+          int eDistInd = floor((eInterpVal-en0Dist)/dEdist);
+          int aDistInd = floor((aInterpVal-ang0Dist)/dAdist);
           if(surfId >=0 && eDistInd >= 0 && eDistInd < nEnDist && 
              aDistInd >= 0 && aDistInd < nAngDist) {
             auto idx = surfId*nEnDist*nAngDist + eDistInd*nAngDist + aDistInd;
@@ -459,25 +458,21 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
           aInterpVal = p::interpolate3d_field(rand8, thetaImpact, log10(E0),
             nAngSputtRefDistOut, nAngSputtRefDistIn, nEnSputtRefDistIn,
             angleDistGrid01, angSputtRefDistIn, enLogSputtRefDistIn, angPhiDist_CDF_Y_regrid);
-          if(debug>1)
-            printf(" surf82 timestep %d ptcl %d interpolate3d eInterpVal %g rand8 %g rand9 %g\n", 
-              iTimeStep, ptcl, eInterpVal, rand8, rand9);            
           eInterpVal = p::interpolate3d_field(rand9,thetaImpact, log10(E0),
             nEnSputtRefDistOut, nAngSputtRefDistIn, nEnSputtRefDistIn,
             energyDistGrid01, angSputtRefDistIn, enLogSputtRefDistIn, enDist_CDF_Y_regrid);
           if(debug>1)
-            printf(" surf83 timestep %d ptcl %d nA %d nASOut %d nESIn %d "
-              " nE %d nASIn %d nESIn %d\n", 
-              iTimeStep, ptcl, nAngSputtRefDistOut, 
-              nAngSputtRefDistIn, nEnSputtRefDistIn,
-              nEnSputtRefDistOutRef, nAngSputtRefDistIn, nEnSputtRefDistIn); 
+            printf(" surf81 timestep %d ptcl %d nA %d nASOut %d nESIn %d "
+              " nE %d nASIn %d nESIn %d interp3d eInterpVal %g aInterpVal %g \n", 
+              iTimeStep, ptcl, nAngSputtRefDistOut, nAngSputtRefDistIn, nEnSputtRefDistIn,
+              nEnSputtRefDistOutRef, nAngSputtRefDistIn, nEnSputtRefDistIn, eInterpVal, aInterpVal); 
           if(debug>1)
              printf(" surf8 sputters timestep %d ptcl %d weight %g newWeight %g "
               " sputtProb %g aInterpVal %g eInterpVal %g\n", iTimeStep, ptcl, weight,
               newWeight, sputtProb, aInterpVal, eInterpVal);
 
-          auto eDistInd = floor((eInterpVal-en0Dist)/dEdist);
-          auto aDistInd = floor((aInterpVal-ang0Dist)/dAdist);
+          int eDistInd = floor((eInterpVal-en0Dist)/dEdist);
+          int aDistInd = floor((aInterpVal-ang0Dist)/dAdist);
           if(surfId >= 0 && eDistInd >= 0 && eDistInd < nEnDist && 
              aDistInd >= 0 && aDistInd < nAngDist) {
             auto idx = surfId*nEnDist*nAngDist + eDistInd*nAngDist + aDistInd;
@@ -498,8 +493,8 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
           }
           if(debug>1)
             printf(" surf10 surfId %d timestep %d ptcl %d newWeight %g GrossDep %g "
-              " GrossEros %g AveSput %g weight %g SpYCount %d \n", surfId, iTimeStep,
-              ptcl, newWeight, addGrossDep, addGrossEros, addSpYCount);
+              " GrossEros %g AveSput %g  SpYCount %d \n", surfId, iTimeStep,
+              ptcl, newWeight, addGrossDep, addGrossEros, addAveSput, addSpYCount);
         }
       } else { // totalYR
         newWeight = 0;
@@ -529,14 +524,18 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
         addSumWtStk += weight;
         addSumPtclStk += 1;
 
-        auto eDistInd = floor((E0-en0Dist)/dEdist);
-        auto aDistInd = floor((thetaImpact-ang0Dist)/dAdist);
+        int eDistInd = floor((E0-en0Dist)/dEdist);
+        int aDistInd = floor((thetaImpact-ang0Dist)/dAdist);
         if(surfId >= 0 && eDistInd >= 0 && eDistInd < nEnDist && 
             aDistInd >= 0 && aDistInd < nAngDist) {
           auto idx = surfId*nEnDist*nAngDist + eDistInd*nAngDist + aDistInd;
-          if(debug>1 || idx >= energyDist_size)
-            printf(" surf12 timestep %d ptcl %d surfId %d energyDist idx %d energyDist.size %d\n", 
-              iTimeStep, ptcl, surfId, idx, energyDist_size);
+
+          if(debug>1)
+            printf("surf12 timestep %d ptcl %d surfId %d nEnDist %d nAngDist %d en0Dist %g enDist %g "
+            "ang0Dist %g dEdist %g dAdist %g eDistInd %d aDistInd %d idx %d energyDist_size %d \n", 
+            iTimeStep, ptcl, surfId, nEnDist, nAngDist,  en0Dist, enDist, ang0Dist,  dEdist, 
+            dAdist, eDistInd, aDistInd, idx, energyDist_size);
+         
           Kokkos::atomic_fetch_add(&(energyDist[idx]), weight);
         }
       } //surface
