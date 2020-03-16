@@ -89,7 +89,7 @@ void GitrmParticles::defineParticles(const o::LOs& ptclsInElem, int elId) {
     printf("\n");
   }
   //'sigma', 'V', and the 'policy' control the layout of the PS structure
-  const int sigma = INT_MAX; // 1  sorting
+  const int sigma = INT_MAX; //full sorting
   const int V = 128;//1024;
   Kokkos::TeamPolicy<Kokkos::DefaultExecutionSpace> policy(10000, 32);
   printf("Constructing Particles with sigma %d\n", sigma);
@@ -804,28 +804,58 @@ void GitrmParticles::initPtclHistoryData(int hstep) {
   int nph = totalPtcls*nThistory;
   ptclHistoryData = o::Write<o::Real>(size, 0, "ptclHistoryData");
   ptclIdsOfHistoryData = o::Write<o::LO>(nph, -1, "ptclIdsOfHistoryData");
+  lastFilledTimeSteps = o::Write<o::LO>(totalPtcls, 0); //init 0 if mpi reduce
 }
 
 //all are collected by rank=0 
 void GitrmParticles::writePtclStepHistoryFile(std::string ncfile, bool debug) {
-  o::HostWrite<o::Real> histData(ptclHistoryData);
+  o::HostWrite<o::Real> histData_h(ptclHistoryData);
   int comm_rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &comm_rank);
   auto size = totalPtcls*dofHistory*nThistory;
   if(debug)
     printf("MPI gather history size %d totalPtcls %d  nThistory %d "
       " allocated history size %d\n", size, totalPtcls, nThistory, ptclHistoryData.size());
-  MPI_Reduce(MPI_IN_PLACE, &histData[0], histData.size(), MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce(MPI_IN_PLACE, &histData_h[0], histData_h.size(), MPI_DOUBLE, MPI_SUM,
+    0, MPI_COMM_WORLD);
+ 
+  o::HostWrite<o::LO> lastFilled_h(lastFilledTimeSteps);
+  //note: make sure default init with 0's for SUM
+  MPI_Reduce(MPI_IN_PLACE, &lastFilled_h[0], lastFilled_h.size(), 
+    MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+
   //TODO use MPI_Gatherv
+
+  //only collecting rank 
   if(comm_rank > 0)
     return;
 
   if(debug)
-    for(int i =0 ; i < 200 && i< histData.size() && i<size; ++i) {
-      printf(" %g", histData[i]);
+    for(int i =0 ; i < 200 && i< histData_h.size() && i<size; ++i) {
+      printf(" %g", histData_h[i]);
       if(i%6==5) printf("\n");
     }
+
+  auto dof = dofHistory;
   int numPtcls = totalPtcls;
+  auto nTh = nThistory;
+  auto histData_d = o::Write<o::Real>(histData_h);
+  auto lastFilled_d = o::Write<o::LO>(lastFilled_h);
+  //fill empty elements with last filled values
+  auto lambda = OMEGA_H_LAMBDA(const o::LO& ptcl) {
+    auto ts = lastFilled_d[ptcl];
+    for(int idof=0; idof<dof; ++idof) { 
+      auto ref = ts*numPtcls*dof + ptcl*dof + idof;
+      auto dat = histData_d[ref];
+      for(int it = ts+1; it < nTh; ++it) {
+        auto ind = it*numPtcls*dof + ptcl*dof + idof;
+        histData_d[ind] = dat;
+      }
+    }
+  };
+  o::parallel_for(numPtcls, lambda);
+
+  o::HostWrite<o::Real> histData(histData_d);
   OutputNcFileFieldStruct outStruct({"nP", "nT"}, {"x", "y", "z", "vx", "vy", "vz"},
                                      {numPtcls, nThistory});
   writeOutputNcFile(histData, numPtcls, dofHistory, outStruct, ncfile);
@@ -835,7 +865,7 @@ void GitrmParticles::writePtclStepHistoryFile(std::string ncfile, bool debug) {
 //if iter is before timestep starts, store init position, which makes
 //total history step +1. Stored in aray for totalPtcls
 void GitrmParticles::updatePtclHistoryData(int iter, const o::LOs& elem_ids) {
-  bool debug = 0;
+  bool debug = false;
   if(!histInterval || iter%histInterval)
     return;
   int iThistory = 1 + iter/histInterval; 
@@ -852,6 +882,7 @@ void GitrmParticles::updatePtclHistoryData(int iter, const o::LOs& elem_ids) {
   auto pid_ps = ptcls->get<PTCL_ID>();
   auto xfids = wallCollisionFaceIds; 
   auto xpts = wallCollisionPts;
+  auto lastSteps = lastFilledTimeSteps;
   if(debug)
     printf(" histupdate iter %d iThistory %d size %d ndi %d nh %d nelid %d nfid %d\n", 
       iter, iThistory, size, ndi, nh, elem_ids.size(), xfids.size());
@@ -861,15 +892,19 @@ void GitrmParticles::updatePtclHistoryData(int iter, const o::LOs& elem_ids) {
       auto vel = p::makeVector3(pid, vel_ps);
       auto pos = p::makeVector3(pid, pos_next);
       if(iter < 0)
-        pos = p::makeVector3(pid, pos_ps);    
-      auto check = (elem_ids[pid] >= 0) || (xfids[pid] >=0);
-      OMEGA_H_CHECK(check);
-      if(xfids[pid] >=0) {
+        pos = p::makeVector3(pid, pos_ps);     
+      else {
+        auto check = (elem_ids[pid] >= 0 || xfids[pid] >=0);
+        OMEGA_H_CHECK(check);
+      }
+      if(iter >=0 && xfids[pid] >=0) {
         for(int i=0; i<3; ++i) {
           pos[i] = xpts[pid*3+i];
         }
       }
-      int beg = nPtcls*dof*iThistory + ptcl*dof; //storage format //nh*ptcl + ndi;
+      //note: index on global ptcl id
+      lastSteps[ptcl] = iThistory;
+      int beg = nPtcls*dof*iThistory + ptcl*dof;
       for(int i=0; i<3; ++i) {
         historyData[beg+i] = pos[i];
         historyData[beg+3+i] = vel[i];

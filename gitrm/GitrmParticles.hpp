@@ -110,6 +110,7 @@ public:
   void initPtclHistoryData(int histInterval);
   o::Write<o::LO> ptclIdsOfHistoryData;
   o::Write<o::Real> ptclHistoryData;
+  o::Write<o::LO> lastFilledTimeSteps;
   int numInitPtcls = 0;  // ptcls->nPtcls()
   int numPtclsRead = 0;
   int dofHistory = 1;
