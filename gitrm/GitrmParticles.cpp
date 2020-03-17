@@ -26,16 +26,15 @@ bool checkIfRankZero() {
 }//ns 
 
 GitrmParticles::GitrmParticles(p::Mesh& picparts, long int nPtcls, int nIter, 
-    double dT, int seed):
-  ptcls(nullptr), picparts(picparts), mesh(*picparts.mesh()) {
+   double dT, int seed):  ptcls(nullptr), picparts(picparts), mesh(*picparts.mesh()) {
   //move to where input is handled
   totalPtcls = nPtcls;
   numIterations = nIter;
   timeStep = dT;
   if(seed)
-    rand_pool1024 = Kokkos::Random_XorShift1024_Pool<>(seed);
+    rand_pool = Kokkos::Random_XorShift64_Pool<>(seed);
   else
-   rand_pool1024 = Kokkos::Random_XorShift1024_Pool<>(time(NULL));
+   rand_pool = Kokkos::Random_XorShift64_Pool<>(time(NULL));
 }
 
 GitrmParticles::~GitrmParticles() {
@@ -55,6 +54,11 @@ void GitrmParticles::initPtclWallCollisionData() {
 void GitrmParticles::convertPtclWallCollisionData() {
   wallCollisionPts = o::Reals(wallCollisionPts_w);
   wallCollisionFaceIds = o::LOs(wallCollisionFaceIds_w);
+}
+
+void GitrmParticles::initPtclEndPoints() {
+  OMEGA_H_CHECK(ptcls->nPtcls() == numInitPtcls);
+  ptclEndPoints = o::Write<o::Real>(3*numInitPtcls, 0, "ptclEndPoints");
 }
 
 void GitrmParticles::defineParticles(const o::LOs& ptclsInElem, int elId) {
@@ -159,7 +163,7 @@ void GitrmParticles::initPtclsFromFile(const std::string& fName,
   std::cout << "find ElemIds of Ptcls \n";
   findElemIdsOfPtclCoordsByAdjSearch(readInData_r, elemIdOfPtcls, ptclDataInds, 
     numPtclsInElems);
-
+  
   printf("Constructing PS particles\n");
   defineParticles(numPtclsInElems, -1);
   initPtclWallCollisionData();
@@ -181,6 +185,7 @@ void GitrmParticles::initPtclsFromFile(const std::string& fName,
   printf("setting ionization recombination init data \n");
   initPtclChargeIoniRecombData();
   initPtclSurfaceModelData();
+  initPtclEndPoints();
   //if(printSource)
   //  printPtclSource(readInData_r, numInitPtcls, 6); //nptcl=0(all), dof=6
 }
@@ -924,10 +929,9 @@ void GitrmParticles::writeDetectedParticles(std::string fname, std::string heade
   //TODO handle if different size in ranks
   MPI_Reduce(MPI_IN_PLACE, &dataTot[0], dataTot.size(), MPI_DOUBLE, MPI_SUM,
     0, MPI_COMM_WORLD);
-  if(!gitrm::checkIfRankZero()) {
-    printf("call to writeDetectedParticles from rank >0 ingnored \n");
+  if(!gitrm::checkIfRankZero())
     return;
-  }
+  
   if(fname=="")
     fname = "result.txt";
   std::ofstream outf(fname);
@@ -944,10 +948,24 @@ void GitrmParticles::writeDetectedParticles(std::string fname, std::string heade
     outf <<  i << " " << dataTot[i] << "\n";
 }
 
+//TODO write nc file
+void GitrmParticles::writeOutPtclEndPoints(const std::string& file) {
+  o::HostWrite<o::Real>pts(ptclEndPoints);
+  //TODO handle if different size in ranks
+  MPI_Reduce(MPI_IN_PLACE, &pts, pts.size(), MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+  if(!gitrm::checkIfRankZero())
+    return;
+  std::ofstream outf(file);
+  //Pos( 1,:) = [ 0.00158164 0.0105611 0.45 ];
+  for(int i=0; i<pts.size(); i=i+3)
+    outf <<  "Pos( " << i << ",:) = [ " <<  pts[i] << " " << pts[i+1] << " " 
+      << pts[i+2] << " ];\n";
+}
+
 //detector grids, for pisces
 void GitrmParticles::initPtclDetectionData(int numGrid) {
   //o::LO numGrid = 14;
- collectedPtcls = o::Write<o::LO>(numGrid, 0, "collectedPtcls");
+  collectedPtcls = o::Write<o::LO>(numGrid, 0, "collectedPtcls");
 }
 
 //TODO dimensions set for pisces to be removed
@@ -962,21 +980,29 @@ void GitrmParticles::updateParticleDetection(const o::LOs& elem_ids, o::LO iter,
   auto& data_d = collectedPtcls;
   auto pisces_ids = mesh.get_array<o::LO>(o::FACE, "DetectorSurfaceIndex");
   auto pid_ps = ptcls->get<PTCL_ID>();
-  //based on ptcl id or ptcls pid ?
+  auto pos_next = ptcls->get<PTCL_NEXT_POS>();
   const auto& xpoints = wallCollisionPts;
   auto& xpointFids = wallCollisionFaceIds;
-
+  //array of global id won't work for large no of ptcls
+  auto& ptclEndPts = ptclEndPoints;
   auto lamb = PS_LAMBDA(const int& e, const int& pid, const int& mask) {
     if(mask >0) {
       auto ptcl = pid_ps(pid);
+      auto pos = p::makeVector3(pid, pos_next);
       auto fid = xpointFids[pid];
       auto elm = elem_ids[pid];
+      for(int i=0; i<3; ++i)
+        ptclEndPts[3*ptcl+i] = pos[i];
       if(elm < 0 && fid>=0) {
         // test
         auto xpt = o::zero_vector<3>();
-        for(o::LO i=0; i<3; ++i)
+        for(o::LO i=0; i<3; ++i) {
           xpt[i] = xpoints[pid*3+i]; //ptcl = 0..numPtcls
-        auto x = xpt[0], y = xpt[1], z = xpt[2];
+          ptclEndPts[3*ptcl+i] = xpt[i];
+        }
+        auto x = xpt[0];
+        auto y = xpt[1];
+        auto z = xpt[2];
         o::Real rad = sqrt(x*x + y*y);
         o::LO zInd = -1;
         if(rad < radMax && z <= zMax && z >= zMin)

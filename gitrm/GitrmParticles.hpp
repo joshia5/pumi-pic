@@ -45,8 +45,7 @@ public:
   long int totalPtcls = 0;
   int numIterations = 0;
 
-  Kokkos::Random_XorShift1024_Pool<> rand_pool1024;
-
+  Kokkos::Random_XorShift64_Pool<> rand_pool;
   void assignParticles(const o::Reals& data, const o::LOs& elemIdOfPtclsAll, 
    o::LOs& numPtclsInElems, o::LOs& elemIdOfPtcls, o::LOs& ptclDataInds);
   
@@ -93,7 +92,6 @@ public:
    int gridsR=1, int gridsZ=10, double radMax=0.2, double zMax=0.8, 
    double radMin=0, double zMin=0);
 
-
   // particle dist to bdry
   o::Reals closestPoints;
   o::LOs closestBdryFaceIds;
@@ -108,9 +106,14 @@ public:
   o::Write<o::LO> wallCollisionFaceIds_w; 
   void updatePtclHistoryData(int iter, const o::LOs& elem_ids);
   void initPtclHistoryData(int histInterval);
+
   o::Write<o::LO> ptclIdsOfHistoryData;
   o::Write<o::Real> ptclHistoryData;
   o::Write<o::LO> lastFilledTimeSteps;
+  o::Write<o::Real> ptclEndPoints;
+  void initPtclEndPoints();
+  void writeOutPtclEndPoints(const std::string& file="positions.m");
+
   int numInitPtcls = 0;  // ptcls->nPtcls()
   int numPtclsRead = 0;
   int dofHistory = 1;

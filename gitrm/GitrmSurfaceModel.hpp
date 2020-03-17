@@ -193,7 +193,7 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
   // if no ptcl hit boundary. NOTE the default should be < 0.
   if(o::get_max(gp.wallCollisionFaceIds) < 0)
     return;
-  auto& rpool = gp.rand_pool1024;
+  auto& rpool = gp.rand_pool;
 
   bool useGitrRnd = USE_GITR_RND_NUMS;
   if(!gp.ranSurfaceReflection)
@@ -386,7 +386,6 @@ inline void gitrm_surfaceReflection(PS* ptcls, GitrmSurfaceModel& sm,
         rand9 = testGitrPtclStepData[beg+2];
         rand10 = testGitrPtclStepData[beg+3];
       } else {
-        //auto& rpool = gp.rand_pool1024; 
         auto rnd = rpool.get_state();
         rand7 = rnd.drand();
         rand8 = rnd.drand();

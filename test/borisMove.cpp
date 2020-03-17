@@ -130,7 +130,7 @@ int main(int argc, char** argv) {
   bool debug = false; //search
   int debug2 = 0;  //routines
   bool surfacemodel = true;
-  bool spectroscopy = false;
+  bool spectroscopy = true;
   bool thermal_force = false;
   bool coulomb_collision = false ;
   bool diffusion = false;
@@ -362,7 +362,9 @@ int main(int argc, char** argv) {
   std::cout << "\nInitialization duration " << dur_init.count()/60 << " min.\n";
   std::chrono::duration<double> dur_steps = end_sim - end_init;
   std::cout << "Total Main Loop duration " << dur_steps.count()/60 << " min.\n";
-  
+
+  gp.writeOutPtclEndPoints();
+
   if(piscesRun) {
     std::string fname("piscesCounts.txt");
     gp.writeDetectedParticles(fname, "piscesDetected");

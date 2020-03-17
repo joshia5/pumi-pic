@@ -151,7 +151,7 @@ inline void gitrm_ionize(PS* ptcls, const GitrmIonizeRecombine& gir,
   //delete later
   auto pos_prev=ptcls->get<0>();
   //kokkos random
-  auto& rpool = gp.rand_pool1024; 
+  auto& rpool = gp.rand_pool; 
   auto lambda = PS_LAMBDA(const int &elem, const int &pid, const int &mask) {
     // invalid elem_ids init to -1
     if(mask > 0 && elm_ids[pid] >= 0) {
@@ -285,7 +285,7 @@ inline void gitrm_recombine(PS* ptcls, const GitrmIonizeRecombine& gir,
   auto first_ionizeZ_ps = ptcls->get<PTCL_FIRST_IONIZEZ>();
   auto prev_recomb_ps = ptcls->get<PTCL_PREV_RECOMBINE>();
   auto psCapacity = ptcls->capacity();
-  auto& rpool = gp.rand_pool1024; 
+  auto& rpool = gp.rand_pool; 
   // is elm_ids[pid] >= 0 make sure ptcl not intersected bdry
   auto lambda = PS_LAMBDA(const int &elem, const int &pid, const int &mask) {
     if(mask > 0 && elm_ids[pid] >= 0) {
