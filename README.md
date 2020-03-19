@@ -1,4 +1,4 @@
-## GITRm
+## gitrm
 
 ### Dependencies
 
