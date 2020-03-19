@@ -4,18 +4,17 @@
 #include "GitrmParticles.hpp"
 
 
-void gitrm_cross_diffusion(PS* ptcls, int *iteration, const GitrmMesh& gm,
-const GitrmParticles& gp, double dt, o::Write<o::LO>& elm_ids)
+inline void gitrm_cross_diffusion(PS* ptcls, int *iteration, const GitrmMesh& gm,
+const GitrmParticles& gp, double dt, const o::LOs& elm_ids, int debug=0)
 {
 
-  bool debug= 0;
   auto pid_ps = ptcls->get<PTCL_ID>();
   auto x_ps_d = ptcls->get<PTCL_POS>();
   auto xtgt_ps_d = ptcls->get<PTCL_NEXT_POS>();
   auto vel_ps_d = ptcls->get<PTCL_VEL>();
   auto charge_ps_d = ptcls->get<PTCL_CHARGE>();
-
-  printf("Entering CROSS DIFFUSION Routine\n");
+  if(debug)
+    printf("Entering CROSS DIFFUSION Routine\n");
   
   //Setting up of 2D magnetic field data 
   const auto& BField_2d = gm.Bfield_2d;
@@ -53,13 +52,23 @@ const GitrmParticles& gp, double dt, o::Write<o::LO>& elm_ids)
   }
 
 
+  bool useGitrRnd = USE_GITR_RND_NUMS;
+  auto psn = ptcls->capacity();
+  o::HostWrite<o::Real> rnd1_h(psn), rnd2_h(psn);
+  for(auto i=0; i<psn; ++i) {
+    rnd1_h[i] = (double)(std::rand())/RAND_MAX;
+    rnd2_h[i] = (double)(std::rand())/RAND_MAX;
+  }
+  auto rands1 = o::Reals(rnd1_h.write());
+  auto rands2 = o::Reals(rnd2_h.write());
+
   auto update_diffusion = PS_LAMBDA(const int& e, const int& pid, const bool& mask) 
 	{ if(mask > 0  && elm_ids[pid] >= 0)
     	{	
         o::LO el            = elm_ids[pid];
         auto ptcl           = pid_ps(pid);
         auto charge         = charge_ps_d(pid);
-        auto fid            = xfaces[ptcl];
+        auto fid            = xfaces[pid];
           if(!charge || fid >=0)
              return;
         
@@ -84,7 +93,7 @@ const GitrmParticles& gp, double dt, o::Write<o::LO>& elm_ids)
 
         if (use2dInputFields || useConstantBField){
 
-            p::interp2dVector(BField_2d, bX0, bZ0, bDx, bDz, bGridNx, bGridNz, posit_next, bField, cylSymm, &ptcl);
+            p::interp2dVector(BField_2d, bX0, bZ0, bDx, bDz, bGridNx, bGridNz, posit_next, bField, cylSymm);
 
             
         }
@@ -198,11 +207,11 @@ const GitrmParticles& gp, double dt, o::Write<o::LO>& elm_ids)
 
 
         if( USEPERPDIFFUSION==1){
+                if(useGitrRnd)
+                  r3  = testGitrPtclStepData[ptcl*testGNT*testGDof + iTimeStep*testGDof + diff_rnd1];
+                else
+                  r3 = rands1[pid];
 
-                
-
-                r3  = testGitrPtclStepData[ptcl*testGNT*testGDof + iTimeStep*testGDof + diff_rnd1];
- 
                 phi_random = 2*3.14159265*r3;
                 perpVector[0] =  cos(phi_random);
                 perpVector[1] =  sin(phi_random);
@@ -239,7 +248,7 @@ const GitrmParticles& gp, double dt, o::Write<o::LO>& elm_ids)
                 xtgt_ps_d(pid,2)=posit_next[2]+step*perpVector[2];
 
         } 
-    if (debug){      
+    if (debug>1){      
     printf("The positions before updation CROSS_DIFFUSION partcle %d timestep %d are %.15f %.15f %.15f \n", ptcl, iTimeStep, posit_next[0], posit_next[1], posit_next[2]); 
     printf("The perpVectors are %.15f %0.15f %0.15f \n",perpVector[0],perpVector[1],perpVector[2]);
     printf("The random number is %.15f\n",r3);

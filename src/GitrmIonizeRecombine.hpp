@@ -78,7 +78,7 @@ OMEGA_H_DEVICE o::Real interpolateRateCoeff(const o::Reals &data,
   if(o::are_close(tem,0) || o::are_close(dens, 0))
     rate = 1.0e12;
   else {
-    OMEGA_H_CHECK(!p::almost_equal(RClocal, 0, 1e-20));
+    OMEGA_H_CHECK(! p::almost_equal(RClocal, 0, 1e-20, 1e-20));
     rate = 1/(RClocal*dens);
   }
   OMEGA_H_CHECK(!isnan(rate));

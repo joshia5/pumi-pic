@@ -2,18 +2,18 @@
 #define THERMAL_FORCE_H
 #include "GitrmMesh.hpp"
 #include "GitrmParticles.hpp"
-void gitrm_thermal_force(PS* ptcls, int *iteration, const GitrmMesh& gm,
-const GitrmParticles& gp, double dt, o::Write<o::LO>& elm_ids)
+inline void gitrm_thermal_force(PS* ptcls, int *iteration, const GitrmMesh& gm,
+const GitrmParticles& gp, double dt, const o::LOs& elm_ids, int debug=0)
 {
 
-  bool debug= 0;
   auto pid_ps = ptcls->get<PTCL_ID>();
   auto x_ps_d = ptcls->get<PTCL_POS>();
   auto xtgt_ps_d = ptcls->get<PTCL_NEXT_POS>();
   auto efield_ps_d  = ptcls->get<PTCL_EFIELD>();
   auto vel_ps_d = ptcls->get<PTCL_VEL>();
   auto charge_ps_d = ptcls->get<PTCL_CHARGE>();
-  printf("Entering Thermal Force Routine\n");
+  if(debug)
+    printf("Entering Thermal Force Routine\n");
   
 
   //Mesh data regarding the gradient of temperatures
@@ -72,7 +72,7 @@ const GitrmParticles& gp, double dt, o::Write<o::LO>& elm_ids)
         auto posit          = p::makeVector3(pid, x_ps_d);
         auto ptcl           = pid_ps(pid);
         auto charge         = charge_ps_d(pid);
-        auto fid            = xfaces[ptcl];
+        auto fid            = xfaces[pid];
           if(!charge || fid >=0)
              return;
 
@@ -84,7 +84,7 @@ const GitrmParticles& gp, double dt, o::Write<o::LO>& elm_ids)
         
         if (use2dInputFields || useConstantBField){
 
-            p::interp2dVector(BField_2d, bX0, bZ0, bDx, bDz, bGridNx, bGridNz, posit_next, bField, cylSymm, &ptcl);
+            p::interp2dVector(BField_2d, bX0, bZ0, bDx, bDz, bGridNx, bGridNz, posit_next, bField, cylSymm);
             
         }
 
@@ -134,7 +134,7 @@ const GitrmParticles& gp, double dt, o::Write<o::LO>& elm_ids)
         dv_ITG[1] =1.602e-19*dt/(amu*MI)*beta*gradti[1]*b_unit[1];
         dv_ITG[2] =1.602e-19*dt/(amu*MI)*beta*gradti[2]*b_unit[2];
 
-        if (debug && ptcl==4){
+        if (debug>1){
 
           printf("Ion_temp_grad particle %d timestep %d: %.16e %.16e %.16e \n",ptcl,iTimeStep, gradti[0], gradti[1], gradti[2]);
           printf("El_temp_grad particle %d timestep %.d: %.16e %.16e %.16e \n",ptcl,iTimeStep,gradte[0], gradte[1], gradte[2] );
@@ -152,7 +152,7 @@ const GitrmParticles& gp, double dt, o::Write<o::LO>& elm_ids)
         vel_ps_d(pid,1)=vel[1]+dv_ITG[1];
         vel_ps_d(pid,2)=vel[2]+dv_ITG[2];
         
-        if (debug && ptcl==4){
+        if (debug>1){
           printf("The velocities after updation THERMAL_COLSN partcle %d timestep %d are %.15f %.15f %.15f \n", ptcl, iTimeStep, vel_ps_d(pid,0),vel_ps_d(pid,1),vel_ps_d(pid,2));
         } 
     	}
