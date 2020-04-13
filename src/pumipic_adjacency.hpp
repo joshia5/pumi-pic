@@ -285,10 +285,12 @@ bool search_mesh_3d(o::Mesh& mesh, // (in) mesh
     Segment3d x_ps_d, // (in) starting particle positions
     Segment3d xtgt_ps_d, // (in) target particle positions
     SegmentInt pid_d, // (in) particle ids
-    o::Write<o::LO>& elem_ids, // (out) parent element ids for the target positions
-    o::Write<o::Real>& xpoints_d, // (out) particle-boundary intersection points
-    o::Write<o::LO>& xface_d, // (out) face ids of boundary-intersecting points
-    int looplimit=0, int debug=0) {
+    SegmentInt elem_ids,
+    SegmentInt xface_d,
+  //  o::Write<o::LO>& elem_ids, // (in, out) parent element ids for the target positions
+  //  o::Write<o::Real>& xpoints_d, // (out) particle-boundary intersection points
+  //  o::Write<o::LO>& xface_d, // (in, out) face ids of boundary-intersecting points
+    int init=0, int looplimit=0, int debug=0) {
   Kokkos::Profiling::pushRegion("pumpipic_search_mesh3d");
   Kokkos::Profiling::pushRegion("pumpipic_search_mesh_Init");
 
@@ -318,22 +320,22 @@ bool search_mesh_3d(o::Mesh& mesh, // (in) mesh
 
   auto fill = PS_LAMBDA(const int& e, const int& pid, const int& mask) {
     if(mask > 0) {
-      elem_ids[pid] = e;
-      ptcl_done[pid] = 0;
+      ptcl_done[pid] = (xface_d(pid) >= 0) ? 2 : 0 ;
     } else {
-      elem_ids[pid] = -1;
-      ptcl_done[pid] = 2;
+      elem_ids(pid) = -1;
+      xface_d(pid) = -1;
     }
   };
   parallel_for(ptcls, fill, "searchMesh_fill_elem_ids");
-
+  // reflected point's origin on wall, which may not be found inside
   auto checkParent = PS_LAMBDA(const int& e, const int& pid, const int& mask) {
-    if( mask > 0) {
+    if( mask > 0 /*&& elem_ids(pid) >= 0*/ && xface_d(pid) < 0) {
       const auto orig = makeVector3(pid, x_ps_d);
-      if(!isPointWithinElemTet(mesh2verts, coords, orig, e, tol)) {
+      auto elId = elem_ids(pid); //=e
+      if(!isPointWithinElemTet(mesh2verts, coords, orig, elId, tol)) {
         if(debug)
-          printf("Search1: ptcl %d not_in parent_element %d :pos %g %g %g \n", 
-            pid_d(pid), e, orig[0], orig[1], orig[2]);
+          printf("Search1: ptcl %d not_in current parent_element %d "
+            ":pos %g %g %g \n", pid_d(pid), elId, orig[0], orig[1], orig[2]);
         OMEGA_H_CHECK(false);
       }
     }
@@ -355,16 +357,16 @@ bool search_mesh_3d(o::Mesh& mesh, // (in) mesh
   while(!found) {
     auto checkCurrentElm = PS_LAMBDA(const int& e, const int& pid, const int& mask) {
       if( mask > 0 && !ptcl_done[pid] ) {
-        const auto searchElm = elem_ids[pid];
+        const auto searchElm = elem_ids(pid);
         OMEGA_H_CHECK(searchElm >= 0);
         const auto dest = makeVector3(pid, xtgt_ps_d);
         auto inParent = isPointWithinElemTet(mesh2verts, coords, dest, searchElm, tol);
         ptcl_done[pid] = (inParent) ? 2:0;
         //if ptcl not done, this will be reset below
-        elem_ids_next[pid] = searchElm;
+        //elem_ids_next[pid] = searchElm;
         if(debug && loops<nloops) {
           el_hist[pid*nl+lsize*loops] = ptcl_done[pid];
-          el_hist[pid*nl+lsize*loops+1] = elem_ids_next[pid];
+          el_hist[pid*nl+lsize*loops+1] = searchElm;
         }
       }
     };
@@ -372,14 +374,15 @@ bool search_mesh_3d(o::Mesh& mesh, // (in) mesh
 
     auto findIntersection = PS_LAMBDA(const int& e, const int& pid, const int& mask) {
       if( mask > 0 && ptcl_done[pid]<2 ) {
-        const auto searchElm = elem_ids[pid];
+        const auto searchElm = elem_ids(pid);
         OMEGA_H_CHECK(searchElm >= 0);
         const auto tetv2v = o::gather_verts<4>(mesh2verts, searchElm);
         const auto dest = makeVector3(pid, xtgt_ps_d);
         const auto orig = makeVector3(pid, x_ps_d);
         const auto face_ids = o::gather_down<4>(elem_faces, searchElm);
         auto dual_elem_id = dual_faces[searchElm];
-        int adj_id = -1, ind_exp = -1;
+        int adj_id = -1;
+        int ind_exp = -1;
         auto projd = o::zero_vector<4>(); //not used
         auto xpts = o::zero_vector<3>();
         for(int fi=0; fi<4; ++fi) {
@@ -405,24 +408,27 @@ bool search_mesh_3d(o::Mesh& mesh, // (in) mesh
         //wall collision
         if(ind_exp >= 0) {
           for(o::LO i=0; i<3; ++i)
-            xpoints_d[pid*3+i] = xpts[i];
-          xface_d[pid] = face_ids[ind_exp];
+            xtgt_ps_d(pid, i) = xpts[i];
+            //xpoints_d[pid*3+i] = xpts[i];
+          xface_d(pid) = face_ids[ind_exp];
           if(debug)
             printf("Search: ptcl %d hit boundary %d  to-be stopped/reflected\n", 
-              pid_d(pid), xface_d[pid]);
-          elem_ids_next[pid] = -1;
+              pid_d(pid), xface_d(pid));
+          //elem_ids_next[pid] = -1;
+          elem_ids(pid) = searchElm;
           ptcl_done[pid] = 2;
           if(debug && loops<nloops)
-            el_hist[pid*nl+lsize*loops+3] = elem_ids_next[pid];
+            el_hist[pid*nl+lsize*loops+3] = searchElm;
         }
 
         //interior
         if(adj_id >= 0) {
-          elem_ids_next[pid] = dual_elems[adj_id];
+          //elem_ids_next[pid] = dual_elems[adj_id];
+          elem_ids(pid) = dual_elems[adj_id];
           ptcl_done[pid] = 1; // reset below to 0/non-zero
           if(debug && loops<nloops) {
             el_hist[pid*nl+lsize*loops+2] = adj_id;
-            el_hist[pid*nl+lsize*loops+3] = elem_ids_next[pid];
+            el_hist[pid*nl+lsize*loops+3] = dual_elems[adj_id];
           }
         }
       }
@@ -433,7 +439,7 @@ bool search_mesh_3d(o::Mesh& mesh, // (in) mesh
       auto done = ptcl_done[pid];
       ptcl_done[pid] = (done <2) ? 0: 2;
       if( mask > 0 && done < 1) {
-        const auto searchElm = elem_ids[pid];
+        const auto searchElm = elem_ids(pid);
         OMEGA_H_CHECK(searchElm >= 0);
         const auto tetv2v = o::gather_verts<4>(mesh2verts, searchElm);
         const auto dest = makeVector3(pid, xtgt_ps_d);
@@ -457,28 +463,31 @@ bool search_mesh_3d(o::Mesh& mesh, // (in) mesh
         const auto face_id = face_ids[max_ind];
         const auto exposed = side_is_exposed[face_id];
         if(exposed) {
-          elem_ids_next[pid] = -1;
+          //elem_ids_next[pid] = -1;
+          elem_ids(pid) = searchElm;
           if(debug && loops<nloops)
-            el_hist[pid*nl+lsize*loops+4] = elem_ids_next[pid];          
+            el_hist[pid*nl+lsize*loops+4] = -1;          
           for(o::LO i=0; i<3; ++i)
-            xpoints_d[pid*3+i] = xpoints[max_ind*3+i];            
-          xface_d[pid] = face_id;
+            xtgt_ps_d(pid, i) = xpoints[max_ind*3+i];
+            //xpoints_d[pid*3+i] = xpoints[max_ind*3+i];            
+          xface_d(pid) = face_id;
           if(debug)
             printf("Search: ptcl %d hit boundary tobe reflected/stopped\n", pid_d(pid));
           ptcl_done[pid] = 2;
         } else {
-          elem_ids_next[pid] = dual_elems[face_id];
+          elem_ids(pid) = dual_elems[face_id];
+          //elem_ids_next[pid] = dual_elems[face_id];
           if(debug && loops<nloops)
-            el_hist[pid*nl+lsize*loops+4] = elem_ids_next[pid];
+            el_hist[pid*nl+lsize*loops+4] = dual_elems[face_id];
         }
       }
     };
     parallel_for(ptcls, processUndetected, "pumipic_processUndetected");
     found = true;
-    auto cp_elm_ids = OMEGA_H_LAMBDA( o::LO i) {
-      elem_ids[i] = elem_ids_next[i];
-    };
-    o::parallel_for(elem_ids.size(), cp_elm_ids, "copy_elem_ids");
+   // auto cp_elm_ids = OMEGA_H_LAMBDA( o::LO i) {
+   //   elem_ids(i) = elem_ids_next[i];
+   // };
+    //o::parallel_for(elem_ids.size(), cp_elm_ids, "copy_elem_ids");
     o::LOs ptcl_done_r(ptcl_done);
     auto minFlag = o::get_min(ptcl_done_r);
     if(minFlag == 0)
@@ -488,7 +497,7 @@ bool search_mesh_3d(o::Mesh& mesh, // (in) mesh
     if(looplimit && loops >= looplimit) {
       auto ptclsNotFound = PS_LAMBDA(const int& e, const int& pid, const int& mask) {
         if( mask > 0 && !ptcl_done[pid] ) {
-          auto elm = elem_ids[pid];
+          auto elm = elem_ids(pid);
           auto ptcl = pid_d(pid);
           const auto dest = makeVector3(pid, xtgt_ps_d);
           const auto orig = makeVector3(pid, x_ps_d);
