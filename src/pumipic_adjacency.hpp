@@ -290,7 +290,7 @@ bool search_mesh_3d(o::Mesh& mesh, // (in) mesh
   //  o::Write<o::LO>& elem_ids, // (in, out) parent element ids for the target positions
   //  o::Write<o::Real>& xpoints_d, // (out) particle-boundary intersection points
   //  o::Write<o::LO>& xface_d, // (in, out) face ids of boundary-intersecting points
-    int init=0, int looplimit=0, int debug=0) {
+    int looplimit=0, int debug=0) {
   Kokkos::Profiling::pushRegion("pumpipic_search_mesh3d");
   Kokkos::Profiling::pushRegion("pumpipic_search_mesh_Init");
 
@@ -324,6 +324,7 @@ bool search_mesh_3d(o::Mesh& mesh, // (in) mesh
     } else {
       elem_ids(pid) = -1;
       xface_d(pid) = -1;
+      ptcl_done[pid] = 2;
     }
   };
   parallel_for(ptcls, fill, "searchMesh_fill_elem_ids");
@@ -364,7 +365,9 @@ bool search_mesh_3d(o::Mesh& mesh, // (in) mesh
         ptcl_done[pid] = (inParent) ? 2:0;
         //if ptcl not done, this will be reset below
         //elem_ids_next[pid] = searchElm;
+printf("debug %d pid %d searchEl %d e %d \n", debug, pid, searchElm, e);
         if(debug && loops<nloops) {
+printf("inhist:debug %d pid %d searchEl %d e %d \n", debug, pid, searchElm, e);
           el_hist[pid*nl+lsize*loops] = ptcl_done[pid];
           el_hist[pid*nl+lsize*loops+1] = searchElm;
         }
