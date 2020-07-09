@@ -56,6 +56,11 @@ mpi_test(pseudoXGCm_120kElms_4 4
   ${TEST_DATA_DIR}/xgc/120k.osh ${TEST_DATA_DIR}/xgc/120k_4.cpn
   10000 141 10 bfs bfs 0.5 0)
 
+mpi_test(test_mkpp 1
+  ./test_makePicparts --kokkos-threads=1
+  /lore/joshia5/develop/build-omegah-cuda-rhel7/test_periodZ.osh ignored
+  10000 141 10 bfs bfs 0.5 0)
+
 
 #MPI+X testing
 mpi_test(print_partition_cube_2 2 ./print_partition ${TEST_DATA_DIR}/cube.msh testing_cube)
