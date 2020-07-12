@@ -58,8 +58,8 @@ mpi_test(pseudoXGCm_120kElms_4 4
 
 mpi_test(test_mkpp 1
   ./test_makePicparts --kokkos-threads=1
-  /lore/joshia5/develop/build-omegah-cuda-rhel7/test_periodZ.osh ignored
-  10000 141 10 bfs bfs 0.5 0)
+  /lore/joshia5/develop/build-omegah-cuda-rhel7/test_periodZ.osh 
+  ignored bfs bfs)
 
 
 #MPI+X testing

@@ -46,8 +46,8 @@ int main(int argc, char** argv) {
   const auto vtx_to_elm = full_mesh.ask_up(0, 2);
   const auto edge_to_elm = full_mesh.ask_up(1, 2);
   printf("ok3\n");
-  const auto bufferMethod = pumipic::Input::getMethod(argv[6]);
-  const auto safeMethod = pumipic::Input::getMethod(argv[7]);
+  const auto bufferMethod = pumipic::Input::getMethod(argv[3]);
+  const auto safeMethod = pumipic::Input::getMethod(argv[4]);
   assert(bufferMethod>=0);
   assert(safeMethod>=0);
   printf("ok4\n");
@@ -60,7 +60,6 @@ int main(int argc, char** argv) {
   printf("ok6\n");
   o::Mesh* mesh = picparts.mesh();
   mesh->ask_elem_verts();
-  auto match_tag = full_mesh.get_array<o::LO>(0, "matches");
   auto dim = mesh->dim();
   auto rank = comm_rank;
 
@@ -71,9 +70,18 @@ int main(int argc, char** argv) {
     for (int i = 0; i < 3; ++i)
       comm_array[elm_id*3 + i] = (owners[elm_id] == rank);
   };
-  Omega_h::parallel_for(picparts.mesh()->nelems(), setMyElmsToOne);
+  Omega_h::parallel_for(mesh->nelems(), setMyElmsToOne);
 
   picparts.reduceCommArray(dim, pumipic::Mesh::SUM_OP, comm_array);
+
+  auto match_tag = full_mesh.get_array<o::LO>(0, "matches");
+  Omega_h::Write<Omega_h::LO> comm_matches = picparts.createCommArray(0, 1, 0);
+  auto setMatches = OMEGA_H_LAMBDA(Omega_h::LO vtx_id) {
+    comm_matches[vtx_id] = match_tag[vtx_id];
+    //TODO:above transfer will not work in parallel
+  };
+  Omega_h::parallel_for(mesh->nverts(), setMatches);
+  picparts.reduceCommArray(0, pumipic::Mesh::SUM_OP, comm_matches);
 
   if (!comm_rank)
     fprintf(stderr, "done\n");
