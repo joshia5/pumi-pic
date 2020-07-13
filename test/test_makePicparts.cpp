@@ -60,28 +60,17 @@ int main(int argc, char** argv) {
   printf("ok6\n");
   o::Mesh* mesh = picparts.mesh();
   mesh->ask_elem_verts();
-  auto dim = mesh->dim();
-  auto rank = comm_rank;
 
-  Omega_h::Write<Omega_h::LO> comm_array = picparts.createCommArray(dim, 3, 0);
+  auto match_partTag = mesh->get_array<o::LO>(0, "matches");
+  o::Write<o::LO> field = picparts.createCommArray(0, 1, 0);
 
-  Omega_h::Read<Omega_h::LO> owners = picparts.entOwners(3);
-  auto setMyElmsToOne = OMEGA_H_LAMBDA(Omega_h::LO elm_id) {
-    for (int i = 0; i < 3; ++i)
-      comm_array[elm_id*3 + i] = (owners[elm_id] == rank);
+  picparts.reduceCommArray(0, pumipic::Mesh::SUM_OP, field);
+
+  /* Pseudo field-sync in serial */
+  auto pseudo_sync = OMEGA_H_LAMBDA(o::LO i) {
+    if (match_partTag[i] > 0) field[i] = field[match_partTag[i]];
   };
-  Omega_h::parallel_for(mesh->nelems(), setMyElmsToOne);
-
-  picparts.reduceCommArray(dim, pumipic::Mesh::SUM_OP, comm_array);
-
-  auto match_tag = full_mesh.get_array<o::LO>(0, "matches");
-  Omega_h::Write<Omega_h::LO> comm_matches = picparts.createCommArray(0, 1, 0);
-  auto setMatches = OMEGA_H_LAMBDA(Omega_h::LO vtx_id) {
-    comm_matches[vtx_id] = match_tag[vtx_id];
-    //TODO:above transfer will not work in parallel
-  };
-  Omega_h::parallel_for(mesh->nverts(), setMatches);
-  picparts.reduceCommArray(0, pumipic::Mesh::SUM_OP, comm_matches);
+  o::parallel_for(field.size(), pseudo_sync);
 
   if (!comm_rank)
     fprintf(stderr, "done\n");
