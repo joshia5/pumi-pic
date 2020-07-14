@@ -56,8 +56,9 @@ int main(int argc, char** argv) {
   if(!comm_rank)
     input.printInfo();
   MPI_Barrier(MPI_COMM_WORLD);
-  p::Mesh picparts(input);
   printf("ok6\n");
+  p::Mesh picparts(input);
+  printf("ok7\n");
   o::Mesh* mesh = picparts.mesh();
   mesh->ask_elem_verts();
 
@@ -67,10 +68,12 @@ int main(int argc, char** argv) {
   picparts.reduceCommArray(0, pumipic::Mesh::SUM_OP, field);
 
   /* Pseudo field-sync in serial */
-  auto pseudo_sync = OMEGA_H_LAMBDA(o::LO i) {
-    if (match_partTag[i] > 0) field[i] = field[match_partTag[i]];
-  };
-  o::parallel_for(field.size(), pseudo_sync);
+  if (comm_size == 1) {
+    auto pseudo_sync = OMEGA_H_LAMBDA(o::LO i) {
+      if (match_partTag[i] > 0) field[i] = field[match_partTag[i]];
+    };
+    o::parallel_for(field.size(), pseudo_sync);
+  }
 
   if (!comm_rank)
     fprintf(stderr, "done\n");
