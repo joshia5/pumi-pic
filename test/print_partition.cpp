@@ -39,7 +39,7 @@ int main(int argc, char** argv) {
 
   if (rank == 0) {
     char filename[200];
-    sprintf(filename, "%s_%d.ptn",argv[2],comm_size);
+    sprintf(filename, "%s_%d.ptn", argv[2], comm_size);
     std::ofstream in_str(filename);
     if (!in_str) {
       fprintf(stderr, "Cannot open file %s\n", filename);
