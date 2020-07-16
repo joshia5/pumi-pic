@@ -67,6 +67,14 @@ int main(int argc, char** argv) {
 
   picparts.reduceCommArray(0, pumipic::Mesh::SUM_OP, field);
 
+  auto vert_globals = picparts.globalIds(0);
+  printf("vert_glosize=%d, nverts in mesh=%d\n",
+         vert_globals.size(), full_mesh.nverts());
+  auto max_globalVert = Omega_h::get_max(vert_globals);
+  printf("max vert in glos = %d at index %d \n", max_globalVert, vert_globals.last());
+  //why is the last value 331?//
+  auto vert_owners = picparts.entOwners(0);
+
   /* Pseudo field-sync in serial */
   if (comm_size == 1) {
     auto pseudo_sync = OMEGA_H_LAMBDA(o::LO i) {
