@@ -65,7 +65,7 @@ mpi_test(test_mkpp_np4 4
   ./test_makePicparts --kokkos-threads=1
   ${TEST_DATA_DIR}/../periodic_data/periodicZ_5k_3d_tuto.osh
   ${TEST_DATA_DIR}/../periodic_data/periodicZ_5k_3d_tuto_4.ptn
-  bfs bfs)
+  none none)
 
 
 #MPI+X testing
